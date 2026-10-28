@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "292301637559",
+    "project_id": "aquadrop-kuet",
+    "storage_bucket": "aquadrop-kuet.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:292301637559:android:bcabf29ed3f39230638a32",
+        "android_client_info": {
+          "package_name": "com.kuet.aquadrop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQEVDem3VXDt-DgD29dVaoCwmAxG3YZ7k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

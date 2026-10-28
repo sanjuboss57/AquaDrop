@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Core App Identity -->
+    <string name="app_name">AquaDrop</string>
+    <string name="app_tagline">Smart Drinking Water Supply &amp; Logistics for KUET</string>
+
+    <!-- Authentication Strings -->
+    <string name="login_title">Welcome Back</string>
+    <string name="login_subtitle">Sign in to your AquaDrop account</string>
+    <string name="register_title">Create Account</string>
+    <string name="register_subtitle">Join the KUET water distribution network</string>
+    <string name="email_hint">Email Address</string>
+    <string name="password_hint">Password</string>
+    <string name="confirm_password_hint">Confirm Password</string>
+    <string name="name_hint">Full Name</string>
+    <string name="phone_hint">Contact Phone Number</string>
+    <string name="role_prompt">Select Your Role</string>
+    <string name="role_buyer">Consumer / Resident (Buyer)</string>
+    <string name="role_seller">Water Depot / Supplier (Seller)</string>
+    <string name="location_prompt">Select Campus Location / Hall</string>
+    <string name="btn_login">Sign In</string>
+    <string name="btn_register">Create Account</string>
+    <string name="no_account_prompt">Don\'t have an account? Sign Up</string>
+    <string name="have_account_prompt">Already have an account? Sign In</string>
+
+    <!-- Buyer Dashboard -->
+    <string name="buyer_dashboard_title">AquaDrop Consumer</string>
+    <string name="order_water_action">Order Water Jars</string>
+    <string name="bottle_ledger_title">Bottle Ledger</string>
+    <string name="bottle_ledger_desc">Track returnable empty jars and deposits</string>
+    <string name="active_order_card_title">Active Delivery Run</string>
+    <string name="no_active_orders">No active deliveries at the moment.</string>
+    <string name="track_order_btn">Live Campus Tracker</string>
+    <string name="verify_handover_btn">Scan Handover QR</string>
+    <string name="recurring_order_btn">Weekly Auto-Delivery</string>
+
+    <!-- Seller Dashboard -->
+    <string name="seller_dashboard_title">AquaDrop Depot Hub</string>
+    <string name="incoming_orders_title">Incoming Orders</string>
+    <string name="active_dispatch_title">Active Dispatches</string>
+    <string name="inventory_summary_title">Depot Stock</string>
+    <string name="start_broadcast_service">Broadcast My GPS Location</string>
+    <string name="stop_broadcast_service">Stop Location Broadcast</string>
+    <string name="generate_handover_qr">Show Delivery QR</string>
+
+    <!-- Tracking & Geolocation -->
+    <string name="live_tracking_title">Live Delivery Tracking</string>
+    <string name="eta_label">Estimated Arrival: %1$s</string>
+    <string name="driver_status_enroute">Supplier is en route with your jars</string>
+    <string name="campus_geofence_kuet">KUET Campus Zone</string>
+
+    <!-- Common UI Strings -->
+    <string name="loading">Please wait…</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_confirm">Confirm</string>
+    <string name="error_field_required">This field is required</string>
+    <string name="error_auth_failed">Authentication failed. Please check your credentials.</string>
+</resources>
+
