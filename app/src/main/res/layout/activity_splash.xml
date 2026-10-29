@@ -5,38 +5,54 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <ImageView
-        android:id="@+id/ivSplashLogo"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
-        android:contentDescription="@string/app_name"
-        android:src="@drawable/ic_water_drop"
+    <!-- Water droplet logo with circular backdrop -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardSplashLogo"
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        app:cardBackgroundColor="@color/white"
+        app:cardCornerRadius="55dp"
+        app:cardElevation="6dp"
         app:layout_constraintBottom_toTopOf="@+id/tvSplashTitle"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed" />
+        app:layout_constraintVertical_chainStyle="packed"
+        app:strokeColor="@color/card_stroke"
+        app:strokeWidth="1dp">
 
+        <ImageView
+            android:id="@+id/ivSplashLogo"
+            android:layout_width="68dp"
+            android:layout_height="68dp"
+            android:layout_gravity="center"
+            android:contentDescription="@string/app_name"
+            android:src="@drawable/ic_water_drop" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- App Title -->
     <TextView
         android:id="@+id/tvSplashTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="@string/app_name"
+        android:layout_marginTop="24dp"
+        android:letterSpacing="0.03"
+        android:text="@string/app_title_kuet"
         android:textColor="@color/primary_dark"
-        android:textSize="32sp"
+        android:textSize="28sp"
         android:textStyle="bold"
-        app:layout_constraintBottom_toTopOf="@+id/tvSplashTagline"
+        app:layout_constraintBottom_toTopOf="@+id/tvSplashSubtitle"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/ivSplashLogo" />
+        app:layout_constraintTop_toBottomOf="@+id/cardSplashLogo" />
 
+    <!-- Subtitle -->
     <TextView
-        android:id="@+id/tvSplashTagline"
+        android:id="@+id/tvSplashSubtitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="@string/app_tagline"
+        android:text="@string/app_splash_subtitle"
         android:textColor="@color/text_secondary"
         android:textSize="14sp"
         app:layout_constraintBottom_toTopOf="@+id/progressBarSplash"
@@ -44,16 +60,16 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/tvSplashTitle" />
 
+    <!-- Indeterminate Progress Indicator -->
     <ProgressBar
         android:id="@+id/progressBarSplash"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:layout_marginTop="36dp"
         android:indeterminateTint="@color/primary"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tvSplashTagline" />
+        app:layout_constraintTop_toBottomOf="@+id/tvSplashSubtitle" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-

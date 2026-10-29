@@ -2,7 +2,9 @@
 <resources>
     <!-- Core App Identity -->
     <string name="app_name">AquaDrop</string>
+    <string name="app_title_kuet">AquaDrop KUET</string>
     <string name="app_tagline">Smart Drinking Water Supply &amp; Logistics for KUET</string>
+    <string name="app_splash_subtitle">Live Geolocation Tracking &amp; Distribution</string>
 
     <!-- Authentication Strings -->
     <string name="login_title">Welcome Back</string>
@@ -10,18 +12,24 @@
     <string name="register_title">Create Account</string>
     <string name="register_subtitle">Join the KUET water distribution network</string>
     <string name="email_hint">Email Address</string>
-    <string name="password_hint">Password</string>
+    <string name="password_hint">Password (min 6 characters)</string>
     <string name="confirm_password_hint">Confirm Password</string>
     <string name="name_hint">Full Name</string>
-    <string name="phone_hint">Contact Phone Number</string>
+    <string name="phone_hint">Contact Phone (e.g. 017xxxxxxxx)</string>
+    <string name="room_flat_hint">Room / House / Flat No.</string>
+    <string name="floor_hint">Floor Number (0 = Ground, 1–6)</string>
     <string name="role_prompt">Select Your Role</string>
+    <string name="role_buyer_label">Buyer (Student / Teacher / Resident)</string>
+    <string name="role_seller_label">Seller (Water Depot / Driver)</string>
     <string name="role_buyer">Consumer / Resident (Buyer)</string>
     <string name="role_seller">Water Depot / Supplier (Seller)</string>
     <string name="location_prompt">Select Campus Location / Hall</string>
     <string name="btn_login">Sign In</string>
-    <string name="btn_register">Create Account</string>
-    <string name="no_account_prompt">Don\'t have an account? Sign Up</string>
+    <string name="btn_register">Register Account</string>
+    <string name="no_account_prompt">Don\'t have an account? Create New Account</string>
     <string name="have_account_prompt">Already have an account? Sign In</string>
+    <string name="signing_in">Signing in…</string>
+    <string name="registering">Creating your account…</string>
 
     <!-- Buyer Dashboard -->
     <string name="buyer_dashboard_title">AquaDrop Consumer</string>

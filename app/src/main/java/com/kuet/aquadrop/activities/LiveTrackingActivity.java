@@ -1,8 +1,10 @@
-package com.kuet.aquadrop;
+package com.kuet.aquadrop.activities;
 
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.kuet.aquadrop.R;
 
 public class LiveTrackingActivity extends AppCompatActivity {
 
