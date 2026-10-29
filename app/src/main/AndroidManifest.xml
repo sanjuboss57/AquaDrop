@@ -32,7 +32,7 @@
 
         <!-- Splash / Launcher Activity -->
         <activity
-            android:name=".SplashActivity"
+            android:name=".activities.SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.AquaDrop">
             <intent-filter>
@@ -43,25 +43,25 @@
 
         <!-- Authentication Activities -->
         <activity
-            android:name=".LoginActivity"
+            android:name=".activities.LoginActivity"
             android:exported="false" />
 
         <activity
-            android:name=".RegisterActivity"
+            android:name=".activities.RegisterActivity"
             android:exported="false" />
 
         <!-- Role Dashboards -->
         <activity
-            android:name=".BuyerDashboardActivity"
+            android:name=".activities.BuyerDashboardActivity"
             android:exported="false" />
 
         <activity
-            android:name=".SellerDashboardActivity"
+            android:name=".activities.SellerDashboardActivity"
             android:exported="false" />
 
         <!-- Geolocation & Tracking -->
         <activity
-            android:name=".LiveTrackingActivity"
+            android:name=".activities.LiveTrackingActivity"
             android:exported="false" />
 
         <!-- Background Location Broadcast Service -->
