@@ -1,15 +1,9 @@
 package com.kuet.aquadrop;
 
-import android.os.Bundle;
-
-import androidx.appcompat.app.AppCompatActivity;
-
-public class SellerDashboardActivity extends AppCompatActivity {
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_seller_dashboard);
-    }
+/**
+ * Backward-compatible forwarding alias for SellerDashboardActivity.
+ * The core implementation is located in com.kuet.aquadrop.activities.SellerDashboardActivity.
+ */
+public class SellerDashboardActivity extends com.kuet.aquadrop.activities.SellerDashboardActivity {
 }
 
