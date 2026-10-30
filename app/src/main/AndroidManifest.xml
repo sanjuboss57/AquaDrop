@@ -66,6 +66,31 @@
 
         <!-- Background Location Broadcast Service -->
         <service
+            android:name=".services.LocationBroadcastService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- Root package aliases for full backward-compatibility -->
+        <activity
+            android:name=".BuyerDashboardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SellerDashboardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".LiveTrackingActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SplashActivity"
+            android:exported="false" />
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false" />
+        <activity
+            android:name=".RegisterActivity"
+            android:exported="false" />
+        <service
             android:name=".LocationBroadcastService"
             android:enabled="true"
             android:exported="false"

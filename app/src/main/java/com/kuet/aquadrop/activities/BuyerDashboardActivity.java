@@ -539,6 +539,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         intent.putExtra("orderId", order.getOrderId());
         intent.putExtra("buyerLat", order.getBuyerLat());
         intent.putExtra("buyerLng", order.getBuyerLng());
+        intent.putExtra("floorNumber", order.getFloorNumber());
         intent.putExtra("locationName", order.getLocationName());
         startActivity(intent);
     }
