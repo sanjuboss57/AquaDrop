@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_rounded_card"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="22dp">
+
+    <!-- Header Icon & Title -->
+    <ImageView
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:contentDescription="@string/app_name"
+        android:src="@drawable/ic_water_drop"
+        app:tint="@color/primary" />
+
+    <TextView
+        android:id="@+id/tvAppQrTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="Install AquaDrop KUET"
+        android:textColor="@color/primary_dark"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvAppQrSubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:text="Scan this QR code with any phone camera\nto download and install the app directly"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp" />
+
+    <!-- 500x500 QR Code Container -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:cardBackgroundColor="@color/white"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="3dp"
+        app:strokeColor="@color/card_stroke"
+        app:strokeWidth="1dp">
+
+        <ImageView
+            android:id="@+id/ivAppDownloadQr"
+            android:layout_width="230dp"
+            android:layout_height="230dp"
+            android:layout_margin="10dp"
+            android:contentDescription="AquaDrop App Download QR Code"
+            tools:src="@drawable/ic_qr_code" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Download Link info & Copy -->
+    <LinearLayout
+        android:id="@+id/llCopyLink"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="#F0F8FF"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/tvDownloadUrl"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:text="https://files.catbox.moe/xb1dae.apk"
+            android:textColor="@color/primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackground"
+            android:padding="4dp"
+            android:text="Copy Link"
+            android:textColor="@color/primary_dark"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Action Buttons Row: Save to Gallery & Share Link -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSaveQrToGallery"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:text="Save QR"
+            android:textAllCaps="false"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            app:cornerRadius="8dp"
+            app:icon="@drawable/ic_download"
+            app:iconSize="16dp"
+            app:iconTint="@color/primary"
+            app:strokeColor="@color/primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnShareApk"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="46dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:text="Share Link"
+            android:textAllCaps="false"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            app:cornerRadius="8dp"
+            app:icon="@drawable/ic_share"
+            app:iconSize="16dp"
+            app:iconTint="@color/primary"
+            app:strokeColor="@color/primary" />
+    </LinearLayout>
+
+    <!-- Done / Close Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCloseAppQrDialog"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="10dp"
+        android:backgroundTint="@color/primary"
+        android:text="Done"
+        android:textAllCaps="false"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        app:cornerRadius="8dp" />
+
+</LinearLayout>
+

@@ -3,7 +3,6 @@ package com.kuet.aquadrop.activities;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Patterns;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ProgressBar;
@@ -19,6 +18,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.AuthResult;
+import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.models.User;
@@ -30,7 +30,6 @@ import java.util.List;
 public class RegisterActivity extends AppCompatActivity {
 
     private TextInputEditText etFullName;
-    private TextInputEditText etRegEmail;
     private TextInputEditText etRegPhone;
     private TextInputEditText etRegPassword;
     private RadioGroup rgRole;
@@ -55,7 +54,6 @@ public class RegisterActivity extends AppCompatActivity {
 
     private void initViews() {
         etFullName = findViewById(R.id.etFullName);
-        etRegEmail = findViewById(R.id.etRegEmail);
         etRegPhone = findViewById(R.id.etRegPhone);
         etRegPassword = findViewById(R.id.etRegPassword);
         rgRole = findViewById(R.id.rgRole);
@@ -96,35 +94,32 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
+    public static String normalizePhoneNumber(String raw) {
+        if (raw == null) return "";
+        String digits = raw.replaceAll("[^0-9]", "");
+        if (digits.startsWith("880") && digits.length() >= 13) {
+            digits = digits.substring(2);
+        }
+        return digits;
+    }
+
     private void attemptRegistration() {
         final String name = etFullName.getText() != null ? etFullName.getText().toString().trim() : "";
-        final String email = etRegEmail.getText() != null ? etRegEmail.getText().toString().trim() : "";
-        final String phone = etRegPhone.getText() != null ? etRegPhone.getText().toString().trim() : "";
+        final String rawPhone = etRegPhone.getText() != null ? etRegPhone.getText().toString().trim() : "";
         final String password = etRegPassword.getText() != null ? etRegPassword.getText().toString().trim() : "";
-        final String roomOrFlat = etRoomOrFlat.getText() != null ? etRoomOrFlat.getText().toString().trim() : "";
-        final String floorStr = etFloorNumber.getText() != null ? etFloorNumber.getText().toString().trim() : "0";
+        String roomOrFlat = etRoomOrFlat.getText() != null ? etRoomOrFlat.getText().toString().trim() : "";
+        final String floorStr = etFloorNumber.getText() != null ? etFloorNumber.getText().toString().trim() : "1";
 
-        // Field Validation
+        // Fast & Lean Validation
         if (TextUtils.isEmpty(name)) {
             etFullName.setError("Full name is required");
             etFullName.requestFocus();
             return;
         }
 
-        if (TextUtils.isEmpty(email)) {
-            etRegEmail.setError("Email is required");
-            etRegEmail.requestFocus();
-            return;
-        }
-
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            etRegEmail.setError("Please enter a valid email address");
-            etRegEmail.requestFocus();
-            return;
-        }
-
-        if (TextUtils.isEmpty(phone)) {
-            etRegPhone.setError("Phone number is required");
+        final String normalizedPhone = normalizePhoneNumber(rawPhone);
+        if (TextUtils.isEmpty(normalizedPhone) || normalizedPhone.length() < 10) {
+            etRegPhone.setError("Please enter a valid phone number (min 10 digits)");
             etRegPhone.requestFocus();
             return;
         }
@@ -136,23 +131,17 @@ public class RegisterActivity extends AppCompatActivity {
         }
 
         if (TextUtils.isEmpty(roomOrFlat)) {
-            etRoomOrFlat.setError("Room or house number is required");
-            etRoomOrFlat.requestFocus();
-            return;
+            roomOrFlat = "Room 101"; // Sensible default if left blank to prevent annoying user blocks
         }
 
-        int floorNumber = 0;
+        int floorNumber = 1;
         try {
             floorNumber = Integer.parseInt(floorStr);
             if (floorNumber < 0 || floorNumber > 6) {
-                etFloorNumber.setError("Floor must be between 0 (Ground) and 6");
-                etFloorNumber.requestFocus();
-                return;
+                floorNumber = 1;
             }
         } catch (NumberFormatException e) {
-            etFloorNumber.setError("Invalid floor number");
-            etFloorNumber.requestFocus();
-            return;
+            floorNumber = 1;
         }
 
         // Determine Selected Role
@@ -163,10 +152,14 @@ public class RegisterActivity extends AppCompatActivity {
         final LatLng latLng = KuetLocations.getLatLngByName(selectedLocation);
 
         final int finalFloorNumber = floorNumber;
+        final String finalRoom = roomOrFlat;
+
+        // Fast Phone-Based Auth Email
+        final String authEmail = normalizedPhone + "@aquadrop.kuet.ac.bd";
 
         setLoadingState(true);
 
-        FirebaseManager.getInstance().getAuth().createUserWithEmailAndPassword(email, password)
+        FirebaseManager.getInstance().getAuth().createUserWithEmailAndPassword(authEmail, password)
                 .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<AuthResult>() {
                     @Override
                     public void onSuccess(AuthResult authResult) {
@@ -174,15 +167,15 @@ public class RegisterActivity extends AppCompatActivity {
                         if (firebaseUser != null) {
                             String uid = firebaseUser.getUid();
 
-                            // Construct User Model
+                            // Construct User Model with normalized phone
                             User newUser = new User(
                                     uid,
                                     name,
-                                    email,
-                                    phone,
+                                    authEmail,
+                                    normalizedPhone,
                                     role,
                                     selectedLocation,
-                                    roomOrFlat,
+                                    finalRoom,
                                     finalFloorNumber,
                                     latLng.latitude,
                                     latLng.longitude,
@@ -201,7 +194,15 @@ public class RegisterActivity extends AppCompatActivity {
                     @Override
                     public void onFailure(Exception e) {
                         setLoadingState(false);
-                        Toast.makeText(RegisterActivity.this, "Registration Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        if (e instanceof FirebaseAuthUserCollisionException) {
+                            Toast.makeText(RegisterActivity.this, "This phone is already registered! Redirecting to login...", Toast.LENGTH_LONG).show();
+                            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                            intent.putExtra("prefillPhone", normalizedPhone);
+                            startActivity(intent);
+                            finish();
+                        } else {
+                            Toast.makeText(RegisterActivity.this, "Registration Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        }
                     }
                 });
     }
@@ -212,7 +213,7 @@ public class RegisterActivity extends AppCompatActivity {
                     @Override
                     public void onSuccess(Void unused) {
                         setLoadingState(false);
-                        Toast.makeText(RegisterActivity.this, "Account created successfully!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(RegisterActivity.this, "Welcome to AquaDrop, " + user.getName() + "!", Toast.LENGTH_SHORT).show();
 
                         Class<?> targetActivity = user.isSeller()
                                 ? SellerDashboardActivity.class
@@ -237,7 +238,6 @@ public class RegisterActivity extends AppCompatActivity {
         progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         btnRegister.setEnabled(!isLoading);
         etFullName.setEnabled(!isLoading);
-        etRegEmail.setEnabled(!isLoading);
         etRegPhone.setEnabled(!isLoading);
         etRegPassword.setEnabled(!isLoading);
         etRoomOrFlat.setEnabled(!isLoading);

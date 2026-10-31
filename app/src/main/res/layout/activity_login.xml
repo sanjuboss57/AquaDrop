@@ -45,7 +45,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="@string/login_subtitle"
+                android:text="Sign in with your Phone Number &amp; Password"
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -73,20 +73,23 @@
                     android:orientation="vertical"
                     android:padding="22dp">
 
+                    <!-- Phone Number Input (replaces email) -->
                     <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilEmail"
+                        android:id="@+id/tilPhone"
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="@string/email_hint"
+                        android:hint="Phone Number (e.g. 017xxxxxxxx)"
                         app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
+                        app:hintTextColor="@color/primary"
+                        app:startIconDrawable="@drawable/ic_call"
+                        app:startIconTint="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etEmail"
+                            android:id="@+id/etPhone"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress"
+                            android:inputType="phone"
                             android:maxLines="1"
                             android:textColor="@color/text_primary" />
                     </com.google.android.material.textfield.TextInputLayout>
@@ -128,7 +131,7 @@
                         android:layout_height="52dp"
                         android:layout_marginTop="16dp"
                         android:backgroundTint="@color/primary"
-                        android:text="@string/btn_login"
+                        android:text="Sign In with Phone"
                         android:textAllCaps="false"
                         android:textColor="@color/white"
                         android:textSize="16sp"
@@ -143,18 +146,82 @@
                 android:id="@+id/tvGoToRegister"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="24dp"
+                android:layout_marginTop="20dp"
                 android:padding="8dp"
                 android:text="@string/no_account_prompt"
                 android:textColor="@color/primary"
                 android:textSize="14sp"
                 android:textStyle="bold"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/cardLoginContainer" />
+
+            <!-- App Download & Share QR Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardAppDownloadQr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="28dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                app:cardBackgroundColor="#EAF6FD"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="1dp"
+                app:strokeColor="#BAE3F8"
+                app:strokeWidth="1dp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/cardLoginContainer"
-                app:layout_constraintVertical_bias="0" />
+                app:layout_constraintTop_toBottomOf="@+id/tvGoToRegister">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="16dp">
+
+                    <ImageView
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:contentDescription="App QR"
+                        android:src="@drawable/ic_qr_code"
+                        app:tint="@color/primary" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Share App / Download QR"
+                            android:textColor="@color/primary_dark"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Show QR code for others to install on their phone"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:rotation="180"
+                        android:src="@drawable/ic_logout"
+                        app:tint="@color/primary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
         </androidx.constraintlayout.widget.ConstraintLayout>
     </ScrollView>

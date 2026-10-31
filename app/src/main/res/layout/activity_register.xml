@@ -22,7 +22,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="@string/register_title"
+                android:text="Fast Registration"
                 android:textColor="@color/primary_dark"
                 android:textSize="26sp"
                 android:textStyle="bold" />
@@ -32,7 +32,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="@string/register_subtitle"
+                android:text="Quick setup with phone number — no email needed"
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
@@ -112,35 +112,18 @@
                             android:maxLines="1" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Email -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilRegEmail"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:hint="@string/email_hint"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etRegEmail"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textEmailAddress"
-                            android:maxLines="1" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Phone -->
+                    <!-- Phone (Fast Phone Registration, No Email Required) -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilRegPhone"
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:hint="@string/phone_hint"
+                        android:hint="Phone Number (e.g. 017xxxxxxxx)"
                         app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
+                        app:hintTextColor="@color/primary"
+                        app:startIconDrawable="@drawable/ic_call"
+                        app:startIconTint="@color/primary">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etRegPhone"
@@ -195,43 +178,53 @@
                         android:paddingStart="12dp"
                         android:paddingEnd="12dp" />
 
-                    <!-- Room / House Number -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilRoomOrFlat"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    <!-- Room & Floor Row (Side-by-side for faster input, Floor pre-filled) -->
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:hint="@string/room_flat_hint"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
+                        android:orientation="horizontal">
 
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etRoomOrFlat"
-                            android:layout_width="match_parent"
+                        <!-- Room / House Number -->
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilRoomOrFlat"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:inputType="text"
-                            android:maxLines="1" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                            android:layout_marginEnd="8dp"
+                            android:layout_weight="2"
+                            android:hint="Room / House No."
+                            app:boxStrokeColor="@color/primary"
+                            app:hintTextColor="@color/primary">
 
-                    <!-- Floor Number (0 to 6) -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilFloorNumber"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:hint="@string/floor_hint"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etRoomOrFlat"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="text"
+                                android:maxLines="1" />
+                        </com.google.android.material.textfield.TextInputLayout>
 
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etFloorNumber"
-                            android:layout_width="match_parent"
+                        <!-- Floor Number (0 to 6) Pre-filled with 1 -->
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilFloorNumber"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:maxLines="1" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                            android:layout_weight="1"
+                            android:hint="Floor (0-6)"
+                            app:boxStrokeColor="@color/primary"
+                            app:hintTextColor="@color/primary">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etFloorNumber"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="number"
+                                android:maxLines="1"
+                                android:text="1" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
 
                     <!-- Loading Progress -->
                     <ProgressBar
@@ -250,7 +243,7 @@
                         android:layout_height="52dp"
                         android:layout_marginTop="18dp"
                         android:backgroundTint="@color/primary"
-                        android:text="@string/btn_register"
+                        android:text="Quick Register (1-Tap)"
                         android:textAllCaps="false"
                         android:textColor="@color/white"
                         android:textSize="16sp"
