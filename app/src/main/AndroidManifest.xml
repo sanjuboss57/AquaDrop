@@ -64,6 +64,11 @@
             android:name=".activities.LiveTrackingActivity"
             android:exported="false" />
 
+        <!-- User Profile (Both Seller & Buyer) -->
+        <activity
+            android:name=".activities.ProfileActivity"
+            android:exported="false" />
+
         <!-- Background Location Broadcast Service -->
         <service
             android:name=".services.LocationBroadcastService"
@@ -77,6 +82,9 @@
             android:exported="false" />
         <activity
             android:name=".SellerDashboardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ProfileActivity"
             android:exported="false" />
         <activity
             android:name=".LiveTrackingActivity"

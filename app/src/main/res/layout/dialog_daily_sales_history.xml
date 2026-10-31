@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_rounded_card"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Header: Title and Icon -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:contentDescription="Daily History"
+            android:src="@drawable/ic_calculate"
+            app:tint="@color/primary" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Daily Sales &amp; History"
+                android:textColor="@color/primary_dark"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDailyHistoryLifetimeSummary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Total: 0 Orders • 0 BDT"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/ivCloseDailyHistory"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Close"
+            android:padding="4dp"
+            android:src="@drawable/ic_logout"
+            app:tint="@color/text_secondary" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="14dp"
+        android:background="@color/divider" />
+
+    <!-- Placeholder for Empty History -->
+    <TextView
+        android:id="@+id/tvNoDailyHistory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="28dp"
+        android:text="No deliveries recorded yet.\nCompleted deliveries will be saved and grouped here by day!"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <!-- RecyclerView for Daily Groups -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvDailyHistoryList"
+        android:layout_width="match_parent"
+        android:layout_height="360dp"
+        android:scrollbars="vertical"
+        tools:listitem="@layout/item_daily_history_group" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCloseDailyHistory"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="@color/primary"
+        android:text="Close"
+        android:textAllCaps="false"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        app:cornerRadius="10dp" />
+
+</LinearLayout>
+

@@ -100,7 +100,7 @@
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="@string/name_hint"
+                        android:hint="Full Name"
                         app:boxStrokeColor="@color/primary"
                         app:hintTextColor="@color/primary">
 
@@ -112,13 +112,13 @@
                             android:maxLines="1" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Phone (Fast Phone Registration, No Email Required) -->
+                    <!-- Phone Number Input (replaces email) -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilRegPhone"
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
+                        android:layout_marginTop="14dp"
                         android:hint="Phone Number (e.g. 017xxxxxxxx)"
                         app:boxStrokeColor="@color/primary"
                         app:hintTextColor="@color/primary"
@@ -133,14 +133,14 @@
                             android:maxLines="1" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Password -->
+                    <!-- Password Input -->
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/tilRegPassword"
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:hint="@string/password_hint"
+                        android:layout_marginTop="14dp"
+                        android:hint="Password (min 6 characters)"
                         app:boxStrokeColor="@color/primary"
                         app:hintTextColor="@color/primary"
                         app:passwordToggleEnabled="true">
@@ -153,17 +153,11 @@
                             android:maxLines="1" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginTop="16dp"
-                        android:layout_marginBottom="14dp"
-                        android:background="@color/divider" />
-
-                    <!-- Location Spinner Header -->
+                    <!-- KUET Campus Location Spinner -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
                         android:text="@string/location_prompt"
                         android:textColor="@color/primary_dark"
                         android:textSize="14sp"
@@ -174,18 +168,16 @@
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:layout_marginTop="6dp"
-                        android:background="@drawable/bg_rounded_card"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp" />
+                        android:background="@drawable/bg_rounded_card" />
 
-                    <!-- Room & Floor Row (Side-by-side for faster input, Floor pre-filled) -->
+                    <!-- Room / Flat & Floor inputs in horizontal layout -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
+                        android:layout_marginTop="14dp"
                         android:orientation="horizontal">
 
-                        <!-- Room / House Number -->
+                        <!-- Room / House No. Optional -->
                         <com.google.android.material.textfield.TextInputLayout
                             android:id="@+id/tilRoomOrFlat"
                             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -259,7 +251,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="16dp"
                 android:layout_marginBottom="28dp"
                 android:padding="8dp"
                 android:text="@string/have_account_prompt"

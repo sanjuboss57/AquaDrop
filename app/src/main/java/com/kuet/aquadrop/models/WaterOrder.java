@@ -1,5 +1,11 @@
 package com.kuet.aquadrop.models;
 
+import android.text.TextUtils;
+import android.util.Log;
+
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.PropertyName;
+
 import java.io.Serializable;
 
 /**
@@ -36,6 +42,9 @@ public class WaterOrder implements Serializable {
     private String status; // PENDING, ACCEPTED, OUT_FOR_DELIVERY, DELIVERED
     private long timestamp;
     private String qrToken;
+    private String sellerId;
+    private long deliveredTimestamp;
+    private String deliveredDate;
 
     // Required empty constructor for Firestore serialization
     public WaterOrder() {
@@ -68,7 +77,117 @@ public class WaterOrder implements Serializable {
         this.qrToken = qrToken;
     }
 
-    // Getters and Setters
+    /**
+     * Resilient deserializer that handles standard POJO conversion as well as
+     * manual fallback to prevent runtime crashes caused by Firestore type variations.
+     */
+    public static WaterOrder fromSnapshot(DocumentSnapshot doc) {
+        if (doc == null || !doc.exists()) {
+            return null;
+        }
+
+        try {
+            WaterOrder order = doc.toObject(WaterOrder.class);
+            if (order != null) {
+                if (TextUtils.isEmpty(order.getOrderId())) {
+                    order.setOrderId(doc.getId());
+                }
+                return order;
+            }
+        } catch (Throwable t) {
+            Log.w("WaterOrder", "Standard POJO conversion failed for doc " + doc.getId() + ": " + t.getMessage());
+        }
+
+        // Resilient fallback manual mapping
+        try {
+            WaterOrder order = new WaterOrder();
+            order.setOrderId(doc.contains("orderId") && doc.getString("orderId") != null ? doc.getString("orderId") : doc.getId());
+            order.setBuyerId(doc.getString("buyerId"));
+            order.setBuyerName(doc.getString("buyerName"));
+            order.setBuyerPhone(doc.getString("buyerPhone"));
+            order.setLocationName(doc.getString("locationName"));
+            order.setRoomOrFlatNo(doc.getString("roomOrFlatNo"));
+
+            Object floorVal = doc.get("floorNumber");
+            if (floorVal instanceof Number) {
+                order.setFloorNumber(((Number) floorVal).intValue());
+            } else if (floorVal instanceof String) {
+                try { order.setFloorNumber(Integer.parseInt((String) floorVal)); } catch (Exception ignored) {}
+            } else {
+                order.setFloorNumber(1);
+            }
+
+            Object latVal = doc.get("buyerLat");
+            if (latVal instanceof Number) {
+                order.setBuyerLat(((Number) latVal).doubleValue());
+            }
+
+            Object lngVal = doc.get("buyerLng");
+            if (lngVal instanceof Number) {
+                order.setBuyerLng(((Number) lngVal).doubleValue());
+            }
+
+            Object refillVal = doc.get("jarRefillCount");
+            if (refillVal instanceof Number) {
+                order.setJarRefillCount(((Number) refillVal).intValue());
+            } else if (refillVal instanceof String) {
+                try { order.setJarRefillCount(Integer.parseInt((String) refillVal)); } catch (Exception ignored) {}
+            } else {
+                order.setJarRefillCount(1);
+            }
+
+            Object depositVal = doc.get("newJarWithDepositCount");
+            if (depositVal instanceof Number) {
+                order.setNewJarWithDepositCount(((Number) depositVal).intValue());
+            }
+
+            Object emptyVal = doc.get("emptyJarsToReturn");
+            if (emptyVal instanceof Number) {
+                order.setEmptyJarsToReturn(((Number) emptyVal).intValue());
+            } else if (emptyVal instanceof String) {
+                try { order.setEmptyJarsToReturn(Integer.parseInt((String) emptyVal)); } catch (Exception ignored) {}
+            }
+
+            Object priceVal = doc.get("totalPrice");
+            if (priceVal instanceof Number) {
+                order.setTotalPrice(((Number) priceVal).doubleValue());
+            } else if (priceVal instanceof String) {
+                try { order.setTotalPrice(Double.parseDouble((String) priceVal)); } catch (Exception ignored) {}
+            }
+
+            order.setPaymentMethod(doc.getString("paymentMethod"));
+            order.setBkashTrxId(doc.getString("bkashTrxId"));
+
+            Boolean urgent = doc.getBoolean("urgent");
+            if (urgent == null) urgent = doc.getBoolean("isUrgent");
+            order.setUrgent(Boolean.TRUE.equals(urgent));
+
+            order.setStatus(doc.getString("status"));
+
+            Object tsVal = doc.get("timestamp");
+            if (tsVal instanceof Number) {
+                order.setTimestamp(((Number) tsVal).longValue());
+            } else {
+                order.setTimestamp(System.currentTimeMillis());
+            }
+
+            order.setQrToken(doc.getString("qrToken"));
+            order.setSellerId(doc.getString("sellerId"));
+            order.setDeliveredDate(doc.getString("deliveredDate"));
+
+            Object dtVal = doc.get("deliveredTimestamp");
+            if (dtVal instanceof Number) {
+                order.setDeliveredTimestamp(((Number) dtVal).longValue());
+            }
+
+            return order;
+        } catch (Throwable t) {
+            Log.e("WaterOrder", "Manual deserialization error for doc " + doc.getId(), t);
+            return null;
+        }
+    }
+
+    // Getters and Setters - Clean standard single types (prevents Firebase conflicting setter errors)
     public String getOrderId() {
         return orderId;
     }
@@ -189,12 +308,14 @@ public class WaterOrder implements Serializable {
         this.bkashTrxId = bkashTrxId;
     }
 
+    @PropertyName("urgent")
     public boolean isUrgent() {
         return isUrgent;
     }
 
+    @PropertyName("urgent")
     public void setUrgent(boolean urgent) {
-        isUrgent = urgent;
+        this.isUrgent = urgent;
     }
 
     public String getStatus() {
@@ -219,5 +340,29 @@ public class WaterOrder implements Serializable {
 
     public void setQrToken(String qrToken) {
         this.qrToken = qrToken;
+    }
+
+    public String getSellerId() {
+        return sellerId;
+    }
+
+    public void setSellerId(String sellerId) {
+        this.sellerId = sellerId;
+    }
+
+    public long getDeliveredTimestamp() {
+        return deliveredTimestamp;
+    }
+
+    public void setDeliveredTimestamp(long deliveredTimestamp) {
+        this.deliveredTimestamp = deliveredTimestamp;
+    }
+
+    public String getDeliveredDate() {
+        return deliveredDate;
+    }
+
+    public void setDeliveredDate(String deliveredDate) {
+        this.deliveredDate = deliveredDate;
     }
 }

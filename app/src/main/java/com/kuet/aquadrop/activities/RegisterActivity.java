@@ -15,6 +15,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.AuthResult;
@@ -131,7 +133,7 @@ public class RegisterActivity extends AppCompatActivity {
         }
 
         if (TextUtils.isEmpty(roomOrFlat)) {
-            roomOrFlat = "Room 101"; // Sensible default if left blank to prevent annoying user blocks
+            roomOrFlat = "Room 101"; // Sensible default if left blank
         }
 
         int floorNumber = 1;
@@ -160,7 +162,7 @@ public class RegisterActivity extends AppCompatActivity {
         setLoadingState(true);
 
         FirebaseManager.getInstance().getAuth().createUserWithEmailAndPassword(authEmail, password)
-                .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<AuthResult>() {
+                .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                     @Override
                     public void onSuccess(AuthResult authResult) {
                         FirebaseUser firebaseUser = authResult.getUser();
@@ -190,17 +192,52 @@ public class RegisterActivity extends AppCompatActivity {
                         }
                     }
                 })
-                .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+                .addOnFailureListener(new OnFailureListener() {
                     @Override
                     public void onFailure(Exception e) {
-                        setLoadingState(false);
                         if (e instanceof FirebaseAuthUserCollisionException) {
-                            Toast.makeText(RegisterActivity.this, "This phone is already registered! Redirecting to login...", Toast.LENGTH_LONG).show();
-                            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                            intent.putExtra("prefillPhone", normalizedPhone);
-                            startActivity(intent);
-                            finish();
+                            // User exists in Firebase Auth: seamlessly authenticate & update registration document
+                            FirebaseManager.getInstance().getAuth().signInWithEmailAndPassword(authEmail, password)
+                                    .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
+                                        @Override
+                                        public void onSuccess(AuthResult authResult) {
+                                            FirebaseUser firebaseUser = authResult.getUser();
+                                            if (firebaseUser != null) {
+                                                String uid = firebaseUser.getUid();
+                                                User updatedUser = new User(
+                                                        uid,
+                                                        name,
+                                                        authEmail,
+                                                        normalizedPhone,
+                                                        role,
+                                                        selectedLocation,
+                                                        finalRoom,
+                                                        finalFloorNumber,
+                                                        latLng.latitude,
+                                                        latLng.longitude,
+                                                        0,
+                                                        0.0
+                                                );
+                                                saveUserToFirestore(updatedUser);
+                                            } else {
+                                                setLoadingState(false);
+                                                Toast.makeText(RegisterActivity.this, "Authentication failed.", Toast.LENGTH_SHORT).show();
+                                            }
+                                        }
+                                    })
+                                    .addOnFailureListener(new OnFailureListener() {
+                                        @Override
+                                        public void onFailure(Exception signErr) {
+                                            setLoadingState(false);
+                                            Toast.makeText(RegisterActivity.this, "This phone is already registered. Redirecting to login...", Toast.LENGTH_LONG).show();
+                                            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                                            intent.putExtra("prefillPhone", normalizedPhone);
+                                            startActivity(intent);
+                                            finish();
+                                        }
+                                    });
                         } else {
+                            setLoadingState(false);
                             Toast.makeText(RegisterActivity.this, "Registration Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                         }
                     }
@@ -209,7 +246,7 @@ public class RegisterActivity extends AppCompatActivity {
 
     private void saveUserToFirestore(final User user) {
         FirebaseManager.getInstance().getUsersRef().document(user.getUid()).set(user)
-                .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() {
+                .addOnSuccessListener(new OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void unused) {
                         setLoadingState(false);
@@ -225,7 +262,7 @@ public class RegisterActivity extends AppCompatActivity {
                         finish();
                     }
                 })
-                .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+                .addOnFailureListener(new OnFailureListener() {
                     @Override
                     public void onFailure(Exception e) {
                         setLoadingState(false);
@@ -248,4 +285,3 @@ public class RegisterActivity extends AppCompatActivity {
         tvGoToLogin.setEnabled(!isLoading);
     }
 }
-

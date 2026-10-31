@@ -28,6 +28,8 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
         void onStartDelivery(WaterOrder order);
         void onOpenLiveMap(WaterOrder order);
         void onScanQr(WaterOrder order);
+        void onEditOrder(WaterOrder order);
+        void onViewGpsOnMap(WaterOrder order);
     }
 
     private List<WaterOrder> orders = new ArrayList<>();
@@ -69,10 +71,14 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
         private final TextView tvBuyerPhone;
         private final MaterialButton btnCallBuyer;
         private final TextView tvDeliveryAddress;
+        private final TextView tvBuyerGpsCoordinates;
+        private final MaterialButton btnViewGpsOnMap;
+        private final LinearLayout llSellerGpsRow;
         private final TextView tvJarsToDeliver;
         private final TextView tvJarsToCollect;
         private final TextView tvPaymentSummary;
         private final TextView tvBkashTrxDetails;
+        private final MaterialButton btnEditOrder;
 
         private final MaterialButton btnAcceptOrder;
         private final MaterialButton btnStartDelivery;
@@ -90,10 +96,14 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
             tvBuyerPhone = itemView.findViewById(R.id.tvBuyerPhone);
             btnCallBuyer = itemView.findViewById(R.id.btnCallBuyer);
             tvDeliveryAddress = itemView.findViewById(R.id.tvDeliveryAddress);
+            tvBuyerGpsCoordinates = itemView.findViewById(R.id.tvBuyerGpsCoordinates);
+            btnViewGpsOnMap = itemView.findViewById(R.id.btnViewGpsOnMap);
+            llSellerGpsRow = itemView.findViewById(R.id.llSellerGpsRow);
             tvJarsToDeliver = itemView.findViewById(R.id.tvJarsToDeliver);
             tvJarsToCollect = itemView.findViewById(R.id.tvJarsToCollect);
             tvPaymentSummary = itemView.findViewById(R.id.tvPaymentSummary);
             tvBkashTrxDetails = itemView.findViewById(R.id.tvBkashTrxDetails);
+            btnEditOrder = itemView.findViewById(R.id.btnEditOrder);
 
             btnAcceptOrder = itemView.findViewById(R.id.btnAcceptOrder);
             btnStartDelivery = itemView.findViewById(R.id.btnStartDelivery);
@@ -119,6 +129,23 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
                     order.getLocationName(),
                     order.getRoomOrFlatNo(),
                     order.getFloorNumber()));
+
+            // Buyer Live GPS Coordinates
+            if (order.getBuyerLat() != 0.0 && order.getBuyerLng() != 0.0) {
+                tvBuyerGpsCoordinates.setText(String.format(Locale.getDefault(),
+                        "GPS: %.5f° N, %.5f° E", order.getBuyerLat(), order.getBuyerLng()));
+            } else {
+                tvBuyerGpsCoordinates.setText(String.format("Location: %s", order.getLocationName()));
+            }
+
+            View.OnClickListener gpsMapListener = new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (listener != null) listener.onViewGpsOnMap(order);
+                }
+            };
+            btnViewGpsOnMap.setOnClickListener(gpsMapListener);
+            llSellerGpsRow.setOnClickListener(gpsMapListener);
 
             // Jars & Amounts
             tvJarsToDeliver.setText(String.format(Locale.getDefault(), "%d x 20L", order.getJarRefillCount()));
@@ -158,8 +185,20 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
                     break;
                 case WaterOrder.STATUS_DELIVERED:
                     tvDeliveredConfirmation.setVisibility(View.VISIBLE);
+                    tvDeliveredConfirmation.setText(String.format(Locale.getDefault(),
+                            "✓ Delivered & Cash Collected: %.0f BDT", order.getTotalPrice()));
                     break;
             }
+
+            // Allow adjusting jar quantities & total price for any active orders
+            boolean canEdit = !WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status);
+            btnEditOrder.setVisibility(canEdit ? View.VISIBLE : View.GONE);
+            btnEditOrder.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (listener != null) listener.onEditOrder(order);
+                }
+            });
 
             // Click Handlers
             btnCallBuyer.setOnClickListener(new View.OnClickListener() {

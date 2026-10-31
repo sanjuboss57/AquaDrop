@@ -43,7 +43,7 @@ import java.io.OutputStream;
 
 public class LoginActivity extends AppCompatActivity {
 
-    public static final String APP_DOWNLOAD_URL = "https://files.catbox.moe/xb1dae.apk";
+    public static final String APP_DOWNLOAD_URL = "https://files.catbox.moe/eobybc.apk";
 
     private TextInputEditText etPhone;
     private TextInputEditText etPassword;

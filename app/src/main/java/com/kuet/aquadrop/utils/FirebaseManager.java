@@ -1,11 +1,16 @@
 package com.kuet.aquadrop.utils;
 
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.WriteBatch;
 
 /**
  * Singleton wrapper providing unified access to Firebase 3-tier services:
@@ -110,5 +115,73 @@ public class FirebaseManager {
 
     public DatabaseReference getTelemetryRef(String orderId) {
         return database.getReference(PATH_ACTIVE_DELIVERIES).child(orderId);
+    }
+
+    public interface OnWipeCompleteListener {
+        void onSuccess(int deletedUsersCount, int deletedOrdersCount);
+        void onFailure(Exception e);
+    }
+
+    /**
+     * Wipes all user registration documents and orders from Cloud Firestore.
+     * Also deletes the current user's Auth account if signed in, and signs out.
+     */
+    public void wipeAllRegistrationDocuments(final OnWipeCompleteListener listener) {
+        getUsersRef().get().addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+            @Override
+            public void onSuccess(final QuerySnapshot userSnapshots) {
+                final int usersCount = userSnapshots != null ? userSnapshots.size() : 0;
+                final WriteBatch batch = firestore.batch();
+                if (userSnapshots != null) {
+                    for (DocumentSnapshot doc : userSnapshots.getDocuments()) {
+                        batch.delete(doc.getReference());
+                    }
+                }
+
+                getOrdersRef().get().addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                    @Override
+                    public void onSuccess(final QuerySnapshot orderSnapshots) {
+                        final int ordersCount = orderSnapshots != null ? orderSnapshots.size() : 0;
+                        if (orderSnapshots != null) {
+                            for (DocumentSnapshot doc : orderSnapshots.getDocuments()) {
+                                batch.delete(doc.getReference());
+                            }
+                        }
+
+                        batch.commit().addOnSuccessListener(new OnSuccessListener<Void>() {
+                            @Override
+                            public void onSuccess(Void unused) {
+                                FirebaseUser current = auth.getCurrentUser();
+                                if (current != null) {
+                                    try {
+                                        current.delete();
+                                    } catch (Exception ignored) {}
+                                }
+                                auth.signOut();
+
+                                if (listener != null) {
+                                    listener.onSuccess(usersCount, ordersCount);
+                                }
+                            }
+                        }).addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (listener != null) listener.onFailure(e);
+                            }
+                        });
+                    }
+                }).addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (listener != null) listener.onFailure(e);
+                    }
+                });
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(Exception e) {
+                if (listener != null) listener.onFailure(e);
+            }
+        });
     }
 }

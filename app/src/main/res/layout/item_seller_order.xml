@@ -144,6 +144,54 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- Buyer Exact GPS Coordinates & 1-Tap Map Pin -->
+        <LinearLayout
+            android:id="@+id/llSellerGpsRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#E0F7FA"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="8dp">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:contentDescription="GPS"
+                android:src="@drawable/ic_gps"
+                app:tint="#00838F" />
+
+            <TextView
+                android:id="@+id/tvBuyerGpsCoordinates"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:text="GPS: 22.899800° N, 89.501500° E"
+                android:textColor="#006064"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnViewGpsOnMap"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="View Map"
+                android:textAllCaps="false"
+                android:textColor="#00838F"
+                android:textSize="11sp"
+                app:icon="@drawable/ic_location_pin"
+                app:iconPadding="2dp"
+                app:iconSize="12dp"
+                app:iconTint="#00838F" />
+        </LinearLayout>
+
         <!-- Jars to Deliver vs Empty Jars to Collect -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -239,20 +287,40 @@
             android:layout_marginBottom="12dp"
             android:background="@color/divider" />
 
+        <!-- Quick Seller Action: Adjust Jar Quantity & Total Price -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEditOrder"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginBottom="8dp"
+            android:text="Adjust Jars &amp; Price"
+            android:textAllCaps="false"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            app:cornerRadius="8dp"
+            app:icon="@drawable/ic_edit"
+            app:iconSize="16dp"
+            app:iconTint="@color/primary"
+            app:strokeColor="@color/primary" />
+
         <!-- Dynamic Action Buttons -->
 
-        <!-- 1. Pending Action: Accept Order -->
+        <!-- 1. Pending Action: Accept & Start Delivery -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAcceptOrder"
             android:layout_width="match_parent"
-            android:layout_height="46dp"
+            android:layout_height="48dp"
             android:backgroundTint="@color/primary"
-            android:text="Accept Order"
+            android:text="Accept Order &amp; Start Delivery"
             android:textAllCaps="false"
             android:textColor="@color/white"
             android:textSize="13sp"
             android:visibility="gone"
-            app:cornerRadius="8dp" />
+            app:cornerRadius="8dp"
+            app:icon="@drawable/ic_delivery_van"
+            app:iconSize="18dp"
+            app:iconTint="@color/white" />
 
         <!-- 2. Accepted Action: Start Van Delivery -->
         <com.google.android.material.button.MaterialButton

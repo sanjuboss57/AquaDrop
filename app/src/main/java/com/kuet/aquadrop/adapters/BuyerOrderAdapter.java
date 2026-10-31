@@ -98,9 +98,15 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
 
             applyStatusStyle(status, order);
 
-            // "Track Live on Map" only visible when OUT_FOR_DELIVERY
-            boolean isOutForDelivery = WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status);
-            btnTrackOrder.setVisibility(isOutForDelivery ? View.VISIBLE : View.GONE);
+            // "Track Live on Map" visible when ACCEPTED or OUT_FOR_DELIVERY
+            boolean canTrackLive = WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status)
+                    || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status);
+            btnTrackOrder.setVisibility(canTrackLive ? View.VISIBLE : View.GONE);
+            btnTrackOrder.setText("Track Delivery Live (GPS)");
+
+            // Handover QR button is active while order is being processed or on the way
+            boolean isDelivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status);
+            btnShowQr.setVisibility(isDelivered ? View.GONE : View.VISIBLE);
 
             btnTrackOrder.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -130,17 +136,17 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
                 case WaterOrder.STATUS_OUT_FOR_DELIVERY:
                     bgColor = Color.parseColor("#E0F7FA");
                     textColor = Color.parseColor("#00838F");
-                    etaText = "Driver en route to " + order.getLocationName();
+                    etaText = "Driver is on the way to " + order.getLocationName() + " (GPS Active)";
                     break;
                 case WaterOrder.STATUS_ACCEPTED:
                     bgColor = Color.parseColor("#E3F2FD");
                     textColor = Color.parseColor("#1565C0");
-                    etaText = "Depot accepted order — Packing jars";
+                    etaText = "Order confirmed! Driver is on the way to " + order.getLocationName();
                     break;
                 case WaterOrder.STATUS_DELIVERED:
                     bgColor = Color.parseColor("#E8F5E9");
                     textColor = Color.parseColor("#2E7D32");
-                    etaText = "Delivered & verified at doorstep";
+                    etaText = "✓ Delivered & Cash Received (" + String.format(Locale.getDefault(), "%.0f BDT", order.getTotalPrice()) + ")";
                     break;
                 case WaterOrder.STATUS_PENDING:
                 default:

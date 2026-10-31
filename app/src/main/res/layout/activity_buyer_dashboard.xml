@@ -54,6 +54,17 @@
         </LinearLayout>
 
         <ImageView
+            android:id="@+id/ivBuyerProfile"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Profile"
+            android:padding="6dp"
+            android:src="@drawable/ic_person"
+            app:tint="@color/white" />
+
+        <ImageView
             android:id="@+id/ivLogout"
             android:layout_width="36dp"
             android:layout_height="36dp"
@@ -322,6 +333,67 @@
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
+                    <!-- Delivery GPS Location Selector -->
+                    <LinearLayout
+                        android:id="@+id/llDeliveryGpsSelector"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="#E0F7FA"
+                        android:orientation="vertical"
+                        android:padding="10dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:contentDescription="Location"
+                                android:src="@drawable/ic_location_pin"
+                                app:tint="#00838F" />
+
+                            <TextView
+                                android:id="@+id/tvSelectedDeliveryLocation"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_weight="1"
+                                android:text="Amar Ekushey Hall • Room 304 (Fl 3)"
+                                android:textColor="#006064"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnChangeDeliveryGps"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:padding="0dp"
+                                android:text="Change GPS"
+                                android:textAllCaps="false"
+                                android:textColor="#00838F"
+                                android:textSize="11sp"
+                                app:icon="@drawable/ic_edit"
+                                app:iconPadding="2dp"
+                                app:iconSize="12dp"
+                                app:iconTint="#00838F" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvSelectedDeliveryGpsCoords"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="24dp"
+                            android:layout_marginTop="2dp"
+                            android:text="GPS: 22.899800° N, 89.501500° E"
+                            android:textColor="#00838F"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
                     <!-- Counter 1: Refill Jars (45 BDT) -->
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -416,7 +488,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Handing over to driver at doorstep"
+                                android:text="Handing over to driver (100% Free - 0 BDT)"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="11sp" />
                         </LinearLayout>
@@ -460,18 +532,18 @@
                             app:cornerRadius="20dp" />
                     </LinearLayout>
 
-                    <!-- Notice: Deposit Fee calculation if Refill > Return -->
+                    <!-- Notice: Zero deposit / Free jar return -->
                     <TextView
                         android:id="@+id/tvDepositNotice"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:background="#FFF8E1"
+                        android:background="#E8F5E9"
                         android:padding="8dp"
-                        android:text="Deposit notice: 0 extra jar security deposit (200 BDT each)"
-                        android:textColor="#F57C00"
+                        android:text="✓ Returning empty jars is 100% FREE (0 BDT). Only refill water is charged."
+                        android:textColor="#2E7D32"
                         android:textSize="12sp"
-                        android:visibility="gone" />
+                        android:visibility="visible" />
 
                     <!-- Emergency Express Delivery CheckBox -->
                     <CheckBox
