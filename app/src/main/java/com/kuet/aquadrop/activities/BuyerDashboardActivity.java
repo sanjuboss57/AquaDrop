@@ -54,8 +54,13 @@ import com.kuet.aquadrop.adapters.BuyerOrderAdapter;
 import com.kuet.aquadrop.models.User;
 import com.kuet.aquadrop.models.WaterOrder;
 import com.kuet.aquadrop.models.WaterQuality;
+import com.kuet.aquadrop.providers.AquaDropContentProvider;
+import com.kuet.aquadrop.receivers.DeliveryStatusReceiver;
+import com.kuet.aquadrop.utils.CampusWeatherApiClient;
 import com.kuet.aquadrop.utils.FirebaseManager;
 import com.kuet.aquadrop.utils.KuetLocations;
+
+import android.content.ContentValues;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,6 +87,12 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private TextView tvTdsLevel;
     private TextView tvPhLevel;
     private TextView tvBatchStatus;
+
+    // Live Campus Weather Views (Week 11 HTTP REST API + JSON)
+    private TextView tvWeatherTemp;
+    private TextView tvWeatherHumidity;
+    private TextView tvWeatherAdvisory;
+    private ImageView ivRefreshWeatherApi;
 
     // Bottle Ledger Views
     private TextView tvEmptyJarsHeld;
@@ -165,6 +176,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         setupRecyclerView();
         setupListeners();
         subscribeToFirestoreData();
+        refreshCampusWeather();
     }
 
     private void initViews() {
@@ -181,6 +193,11 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         tvTdsLevel = findViewById(R.id.tvTdsLevel);
         tvPhLevel = findViewById(R.id.tvPhLevel);
         tvBatchStatus = findViewById(R.id.tvBatchStatus);
+
+        tvWeatherTemp = findViewById(R.id.tvWeatherTemp);
+        tvWeatherHumidity = findViewById(R.id.tvWeatherHumidity);
+        tvWeatherAdvisory = findViewById(R.id.tvWeatherAdvisory);
+        ivRefreshWeatherApi = findViewById(R.id.ivRefreshWeatherApi);
 
         tvEmptyJarsHeld = findViewById(R.id.tvEmptyJarsHeld);
         tvDepositBalance = findViewById(R.id.tvDepositBalance);
@@ -348,6 +365,46 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
             @Override
             public void onClick(View v) {
                 placeWaterOrder();
+            }
+        });
+
+        if (ivRefreshWeatherApi != null) {
+            ivRefreshWeatherApi.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    refreshCampusWeather();
+                }
+            });
+        }
+    }
+
+    /**
+     * Week 11 Syllabus: Networking & Data Handling via HTTP REST API and JSON parsing.
+     * Connects to Open-Meteo REST API using native HttpURLConnection on background ExecutorService.
+     */
+    private void refreshCampusWeather() {
+        if (tvWeatherAdvisory != null) {
+            tvWeatherAdvisory.setText("Connecting to Open-Meteo REST API via HTTP GET (JSON parsing)...");
+        }
+        CampusWeatherApiClient.fetchCampusHydrationMetrics(new CampusWeatherApiClient.WeatherCallback() {
+            @Override
+            public void onSuccess(double temperatureCelsius, double humidityPercent, String hydrationAdvisory) {
+                if (tvWeatherTemp != null) {
+                    tvWeatherTemp.setText(String.format(Locale.getDefault(), "%.1f °C", temperatureCelsius));
+                }
+                if (tvWeatherHumidity != null) {
+                    tvWeatherHumidity.setText(String.format(Locale.getDefault(), "%.0f %%", humidityPercent));
+                }
+                if (tvWeatherAdvisory != null) {
+                    tvWeatherAdvisory.setText(hydrationAdvisory);
+                }
+            }
+
+            @Override
+            public void onFailure(String errorMessage) {
+                if (tvWeatherAdvisory != null) {
+                    tvWeatherAdvisory.setText("Offline Advisory: Maintain 3L healthy hydration on campus.");
+                }
             }
         });
     }
@@ -660,6 +717,31 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         btnPlaceOrder.setEnabled(true);
                         Toast.makeText(BuyerDashboardActivity.this, "Order " + orderId + " placed!", Toast.LENGTH_SHORT).show();
 
+                        // Week 10 Component: BroadcastReceiver alert intent
+                        Intent alertIntent = new Intent(DeliveryStatusReceiver.ACTION_ORDER_ALERT);
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, orderId);
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_PENDING);
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "Order #" + orderId + " placed! Waiting for depot dispatch.");
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, finalLat);
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, finalLng);
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, finalLocName);
+                        sendBroadcast(alertIntent);
+
+                        // Week 10 Component: ContentProvider record insertion
+                        try {
+                            ContentValues cv = new ContentValues();
+                            cv.put(AquaDropContentProvider.COL_ORDER_ID, orderId);
+                            cv.put(AquaDropContentProvider.COL_BUYER_NAME, currentUser.getName());
+                            cv.put(AquaDropContentProvider.COL_BUYER_PHONE, currentUser.getPhone());
+                            cv.put(AquaDropContentProvider.COL_LOCATION, finalLocName);
+                            cv.put(AquaDropContentProvider.COL_STATUS, WaterOrder.STATUS_PENDING);
+                            cv.put(AquaDropContentProvider.COL_TOTAL_PRICE, calculatedTotal);
+                            getContentResolver().insert(AquaDropContentProvider.CONTENT_URI_ORDERS, cv);
+                            Log.d("BuyerDashboard", "Order synced via ContentProvider: " + orderId);
+                        } catch (Exception cpErr) {
+                            Log.w("BuyerDashboard", "ContentProvider sync notice: " + cpErr.getMessage());
+                        }
+
                         // Reset form
                         refillJarCount = 1;
                         returnJarCount = 1;
@@ -806,10 +888,99 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     }
 
     @Override
+    public void onCancelOrderClicked(final WaterOrder order) {
+        if (order == null || TextUtils.isEmpty(order.getOrderId())) {
+            return;
+        }
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Cancel Order #" + order.getOrderId())
+                .setMessage("Are you sure you want to cancel this water delivery request? This action cannot be undone.")
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .setPositiveButton("Yes, Cancel", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface dialog, int which) {
+                        FirebaseManager.getInstance().getOrdersRef()
+                                .document(order.getOrderId())
+                                .update("status", WaterOrder.STATUS_CANCELLED)
+                                .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() {
+                                    @Override
+                                    public void onSuccess(Void unused) {
+                                        Toast.makeText(BuyerDashboardActivity.this,
+                                                "Order #" + order.getOrderId() + " cancelled successfully.",
+                                                Toast.LENGTH_SHORT).show();
+
+                                        // Week 10: Broadcast cancellation event
+                                        Intent cancelIntent = new Intent(DeliveryStatusReceiver.ACTION_DELIVERY_UPDATE);
+                                        cancelIntent.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, order.getOrderId());
+                                        cancelIntent.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_CANCELLED);
+                                        cancelIntent.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "Order #" + order.getOrderId() + " has been cancelled.");
+                                        sendBroadcast(cancelIntent);
+                                    }
+                                })
+                                .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        Toast.makeText(BuyerDashboardActivity.this,
+                                                "Failed to cancel order: " + e.getMessage(),
+                                                Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                    }
+                })
+                .setNegativeButton("Keep Order", null)
+                .show();
+    }
+
+    // --- Week 8 Syllabus: Activity Lifecycle Callbacks & Observation ---
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("AquaDropLifecycle", "BuyerDashboardActivity: onStart() called");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d("AquaDropLifecycle", "BuyerDashboardActivity: onResume() called");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d("AquaDropLifecycle", "BuyerDashboardActivity: onPause() called");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d("AquaDropLifecycle", "BuyerDashboardActivity: onStop() called");
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.d("AquaDropLifecycle", "BuyerDashboardActivity: onDestroy() called");
         if (userListenerRegistration != null) userListenerRegistration.remove();
         if (ordersListenerRegistration != null) ordersListenerRegistration.remove();
         if (qualityListenerRegistration != null) qualityListenerRegistration.remove();
+    }
+
+    // --- Week 8 Syllabus: Implicit Intent Demonstration ---
+
+    /**
+     * Demonstrates an Implicit Intent (Intent.ACTION_SEND) to share order receipt / invite peers.
+     */
+    public void shareOrderReceipt(WaterOrder order) {
+        if (order == null) return;
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        String shareBody = String.format(Locale.getDefault(),
+                "AquaDrop KUET Water Delivery Receipt\nOrder: %s\nJars: %d x 20L\nTotal: %.0f BDT\nDelivery Location: %s\nTrack & Order via AquaDrop!",
+                order.getOrderId(), order.getJarRefillCount(), order.getTotalPrice(), order.getLocationName());
+        shareIntent.putExtra(Intent.EXTRA_SUBJECT, "AquaDrop Order #" + order.getOrderId());
+        shareIntent.putExtra(Intent.EXTRA_TEXT, shareBody);
+        startActivity(Intent.createChooser(shareIntent, "Share Order Receipt via"));
     }
 }

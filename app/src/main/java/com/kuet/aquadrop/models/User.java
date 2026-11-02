@@ -22,6 +22,8 @@ public class User implements Serializable {
     private double longitude;
     private int emptyJarsHeld;
     private double depositBalance;
+    private String sellerAccessKey;
+    private boolean sellerAuthorized;
 
     // Required empty constructor for Firestore deserialization
     public User() {
@@ -148,5 +150,21 @@ public class User implements Serializable {
 
     public void setDepositBalance(double depositBalance) {
         this.depositBalance = depositBalance;
+    }
+
+    public String getSellerAccessKey() {
+        return sellerAccessKey;
+    }
+
+    public void setSellerAccessKey(String sellerAccessKey) {
+        this.sellerAccessKey = sellerAccessKey;
+    }
+
+    public boolean isSellerAuthorized() {
+        return sellerAuthorized;
+    }
+
+    public void setSellerAuthorized(boolean sellerAuthorized) {
+        this.sellerAuthorized = sellerAuthorized;
     }
 }

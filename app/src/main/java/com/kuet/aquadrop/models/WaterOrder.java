@@ -18,6 +18,7 @@ public class WaterOrder implements Serializable {
     public static final String STATUS_ACCEPTED = "ACCEPTED";
     public static final String STATUS_OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY";
     public static final String STATUS_DELIVERED = "DELIVERED";
+    public static final String STATUS_CANCELLED = "CANCELLED";
 
     // Payment Methods
     public static final String PAYMENT_CASH = "CASH";
@@ -101,90 +102,89 @@ public class WaterOrder implements Serializable {
         // Resilient fallback manual mapping
         try {
             WaterOrder order = new WaterOrder();
-            order.setOrderId(doc.contains("orderId") && doc.getString("orderId") != null ? doc.getString("orderId") : doc.getId());
-            order.setBuyerId(doc.getString("buyerId"));
-            order.setBuyerName(doc.getString("buyerName"));
-            order.setBuyerPhone(doc.getString("buyerPhone"));
-            order.setLocationName(doc.getString("locationName"));
-            order.setRoomOrFlatNo(doc.getString("roomOrFlatNo"));
+            order.setOrderId(safeString(doc, "orderId", doc.getId()));
+            order.setBuyerId(safeString(doc, "buyerId", ""));
+            order.setBuyerName(safeString(doc, "buyerName", "AquaDrop Customer"));
+            order.setBuyerPhone(safeString(doc, "buyerPhone", ""));
+            order.setLocationName(safeString(doc, "locationName", "Campus Location"));
+            order.setRoomOrFlatNo(safeString(doc, "roomOrFlatNo", ""));
+            order.setFloorNumber(safeInt(doc, "floorNumber", 1));
 
-            Object floorVal = doc.get("floorNumber");
-            if (floorVal instanceof Number) {
-                order.setFloorNumber(((Number) floorVal).intValue());
-            } else if (floorVal instanceof String) {
-                try { order.setFloorNumber(Integer.parseInt((String) floorVal)); } catch (Exception ignored) {}
-            } else {
-                order.setFloorNumber(1);
-            }
+            order.setBuyerLat(safeDouble(doc, "buyerLat", 0.0));
+            order.setBuyerLng(safeDouble(doc, "buyerLng", 0.0));
 
-            Object latVal = doc.get("buyerLat");
-            if (latVal instanceof Number) {
-                order.setBuyerLat(((Number) latVal).doubleValue());
-            }
+            order.setJarRefillCount(safeInt(doc, "jarRefillCount", 1));
+            order.setNewJarWithDepositCount(safeInt(doc, "newJarWithDepositCount", 0));
+            order.setEmptyJarsToReturn(safeInt(doc, "emptyJarsToReturn", 0));
+            order.setTotalPrice(safeDouble(doc, "totalPrice", 0.0));
 
-            Object lngVal = doc.get("buyerLng");
-            if (lngVal instanceof Number) {
-                order.setBuyerLng(((Number) lngVal).doubleValue());
-            }
+            order.setPaymentMethod(safeString(doc, "paymentMethod", PAYMENT_CASH));
+            order.setBkashTrxId(safeString(doc, "bkashTrxId", ""));
 
-            Object refillVal = doc.get("jarRefillCount");
-            if (refillVal instanceof Number) {
-                order.setJarRefillCount(((Number) refillVal).intValue());
-            } else if (refillVal instanceof String) {
-                try { order.setJarRefillCount(Integer.parseInt((String) refillVal)); } catch (Exception ignored) {}
-            } else {
-                order.setJarRefillCount(1);
-            }
+            boolean urgent = safeBoolean(doc, "urgent", false);
+            if (!urgent) urgent = safeBoolean(doc, "isUrgent", false);
+            order.setUrgent(urgent);
 
-            Object depositVal = doc.get("newJarWithDepositCount");
-            if (depositVal instanceof Number) {
-                order.setNewJarWithDepositCount(((Number) depositVal).intValue());
-            }
-
-            Object emptyVal = doc.get("emptyJarsToReturn");
-            if (emptyVal instanceof Number) {
-                order.setEmptyJarsToReturn(((Number) emptyVal).intValue());
-            } else if (emptyVal instanceof String) {
-                try { order.setEmptyJarsToReturn(Integer.parseInt((String) emptyVal)); } catch (Exception ignored) {}
-            }
-
-            Object priceVal = doc.get("totalPrice");
-            if (priceVal instanceof Number) {
-                order.setTotalPrice(((Number) priceVal).doubleValue());
-            } else if (priceVal instanceof String) {
-                try { order.setTotalPrice(Double.parseDouble((String) priceVal)); } catch (Exception ignored) {}
-            }
-
-            order.setPaymentMethod(doc.getString("paymentMethod"));
-            order.setBkashTrxId(doc.getString("bkashTrxId"));
-
-            Boolean urgent = doc.getBoolean("urgent");
-            if (urgent == null) urgent = doc.getBoolean("isUrgent");
-            order.setUrgent(Boolean.TRUE.equals(urgent));
-
-            order.setStatus(doc.getString("status"));
-
-            Object tsVal = doc.get("timestamp");
-            if (tsVal instanceof Number) {
-                order.setTimestamp(((Number) tsVal).longValue());
-            } else {
-                order.setTimestamp(System.currentTimeMillis());
-            }
-
-            order.setQrToken(doc.getString("qrToken"));
-            order.setSellerId(doc.getString("sellerId"));
-            order.setDeliveredDate(doc.getString("deliveredDate"));
-
-            Object dtVal = doc.get("deliveredTimestamp");
-            if (dtVal instanceof Number) {
-                order.setDeliveredTimestamp(((Number) dtVal).longValue());
-            }
+            order.setStatus(safeString(doc, "status", STATUS_PENDING));
+            order.setTimestamp(safeLong(doc, "timestamp", System.currentTimeMillis()));
+            order.setQrToken(safeString(doc, "qrToken", ""));
+            order.setSellerId(safeString(doc, "sellerId", ""));
+            order.setDeliveredDate(safeString(doc, "deliveredDate", ""));
+            order.setDeliveredTimestamp(safeLong(doc, "deliveredTimestamp", 0L));
 
             return order;
         } catch (Throwable t) {
             Log.e("WaterOrder", "Manual deserialization error for doc " + doc.getId(), t);
-            return null;
+            // Ultra-fallback minimal order rather than null
+            WaterOrder minimal = new WaterOrder();
+            minimal.setOrderId(doc.getId());
+            minimal.setStatus(STATUS_PENDING);
+            return minimal;
         }
+    }
+
+    private static String safeString(DocumentSnapshot doc, String field, String fallback) {
+        if (doc == null || !doc.contains(field)) return fallback;
+        Object val = doc.get(field);
+        return val != null ? String.valueOf(val) : fallback;
+    }
+
+    private static int safeInt(DocumentSnapshot doc, String field, int fallback) {
+        if (doc == null || !doc.contains(field)) return fallback;
+        Object val = doc.get(field);
+        if (val instanceof Number) return ((Number) val).intValue();
+        if (val instanceof String) {
+            try { return Integer.parseInt(((String) val).trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private static double safeDouble(DocumentSnapshot doc, String field, double fallback) {
+        if (doc == null || !doc.contains(field)) return fallback;
+        Object val = doc.get(field);
+        if (val instanceof Number) return ((Number) val).doubleValue();
+        if (val instanceof String) {
+            try { return Double.parseDouble(((String) val).trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private static long safeLong(DocumentSnapshot doc, String field, long fallback) {
+        if (doc == null || !doc.contains(field)) return fallback;
+        Object val = doc.get(field);
+        if (val instanceof Number) return ((Number) val).longValue();
+        if (val instanceof String) {
+            try { return Long.parseLong(((String) val).trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private static boolean safeBoolean(DocumentSnapshot doc, String field, boolean fallback) {
+        if (doc == null || !doc.contains(field)) return fallback;
+        Object val = doc.get(field);
+        if (val instanceof Boolean) return (Boolean) val;
+        if (val instanceof String) return Boolean.parseBoolean((String) val);
+        return fallback;
     }
 
     // Getters and Setters - Clean standard single types (prevents Firebase conflicting setter errors)

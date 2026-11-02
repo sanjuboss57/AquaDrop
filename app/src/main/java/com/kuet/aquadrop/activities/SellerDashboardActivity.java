@@ -48,6 +48,7 @@ import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.adapters.SellerOrderAdapter;
 import com.kuet.aquadrop.models.WaterOrder;
 import com.kuet.aquadrop.models.WaterQuality;
+import com.kuet.aquadrop.receivers.DeliveryStatusReceiver;
 import com.kuet.aquadrop.services.LocationBroadcastService;
 import com.kuet.aquadrop.utils.FirebaseManager;
 
@@ -218,6 +219,9 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                     public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
                         if (error != null) {
                             Log.e("SellerDashboard", "Orders snapshot listener error: " + error.getMessage(), error);
+                            Toast.makeText(SellerDashboardActivity.this,
+                                    "Firestore Orders Sync Error: " + error.getMessage(),
+                                    Toast.LENGTH_LONG).show();
                             fetchOrdersDirectly(false);
                             return;
                         }
@@ -243,7 +247,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                             processOrdersSnapshot(snapshots);
                             if (userInitiated) {
                                 Toast.makeText(SellerDashboardActivity.this,
-                                        "Orders synchronized (" + snapshots.size() + " active)", Toast.LENGTH_SHORT).show();
+                                        "Orders synchronized (" + snapshots.size() + " in database)", Toast.LENGTH_SHORT).show();
                             }
                         }
                     }
@@ -252,6 +256,10 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                     @Override
                     public void onFailure(@NonNull Exception e) {
                         Log.w("SellerDashboard", "Server fetch failed, trying default cache: " + e.getMessage());
+                        if (userInitiated) {
+                            Toast.makeText(SellerDashboardActivity.this,
+                                    "Server sync notice: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
                         FirebaseManager.getInstance().getOrdersRef()
                                 .get(Source.DEFAULT)
                                 .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
@@ -259,7 +267,20 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                                     public void onSuccess(QuerySnapshot cachedSnapshots) {
                                         if (cachedSnapshots != null) {
                                             processOrdersSnapshot(cachedSnapshots);
+                                            if (userInitiated) {
+                                                Toast.makeText(SellerDashboardActivity.this,
+                                                        "Orders loaded from cache (" + cachedSnapshots.size() + ")",
+                                                        Toast.LENGTH_SHORT).show();
+                                            }
                                         }
+                                    }
+                                })
+                                .addOnFailureListener(new OnFailureListener() {
+                                    @Override
+                                    public void onFailure(@NonNull Exception cacheErr) {
+                                        Toast.makeText(SellerDashboardActivity.this,
+                                                "Failed to sync orders: " + cacheErr.getMessage(),
+                                                Toast.LENGTH_LONG).show();
                                     }
                                 });
                     }
@@ -334,9 +355,9 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                     "Lifetime: %d deliveries completed • %.0f BDT total revenue • %d empty jars returned",
                     lifetimeDeliveredCount, lifetimeRevenue, emptyCollectedCount));
         }
-        tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Orders", orderList.size()));
+        tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Orders (%d Pending)", orderList.size(), pendingCount));
 
-        // Sorting Strategy: Active before Delivered, Urgent (isUrgent == true) at the top, newest first
+        // Sorting Strategy: Active before Delivered/Cancelled, Urgent (isUrgent == true) at the top, newest first
         Collections.sort(orderList, new Comparator<WaterOrder>() {
             @Override
             public int compare(WaterOrder o1, WaterOrder o2) {
@@ -347,11 +368,17 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                 String s1 = o1.getStatus() != null ? o1.getStatus() : "";
                 String s2 = o2.getStatus() != null ? o2.getStatus() : "";
 
-                boolean o1Delivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(s1);
-                boolean o2Delivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(s2);
+                boolean o1Terminal = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(s1) || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s1);
+                boolean o2Terminal = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(s2) || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s2);
 
-                if (o1Delivered != o2Delivered) {
-                    return o1Delivered ? 1 : -1;
+                if (o1Terminal != o2Terminal) {
+                    return o1Terminal ? 1 : -1;
+                }
+
+                boolean o1Cancelled = WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s1);
+                boolean o2Cancelled = WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s2);
+                if (o1Cancelled != o2Cancelled) {
+                    return o1Cancelled ? 1 : -1;
                 }
 
                 if (o1.isUrgent() != o2.isUrgent()) {
@@ -365,6 +392,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         sellerOrderAdapter.setOrders(orderList);
 
         if (orderList.isEmpty()) {
+            tvNoSellerOrders.setText("No orders in dispatch queue.\n(Waiting for buyer orders • Tap 🔄 in header to refresh)");
             tvNoSellerOrders.setVisibility(View.VISIBLE);
             rvSellerOrders.setVisibility(View.GONE);
         } else {
@@ -403,6 +431,11 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
 
     @Override
     public void onAcceptOrder(final WaterOrder order) {
+        if (order == null) return;
+        if (WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(order.getStatus())) {
+            Toast.makeText(this, "Cannot accept: This order was cancelled by the buyer.", Toast.LENGTH_SHORT).show();
+            return;
+        }
         final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
         Map<String, Object> updates = new HashMap<>();
         updates.put("status", WaterOrder.STATUS_OUT_FOR_DELIVERY);
@@ -423,6 +456,16 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         serviceIntent.putExtra("floorNumber", order.getFloorNumber());
                         serviceIntent.putExtra("locationName", order.getLocationName());
                         ContextCompat.startForegroundService(SellerDashboardActivity.this, serviceIntent);
+
+                        // Week 10: Broadcast delivery status update
+                        Intent dispatchIntent = new Intent(DeliveryStatusReceiver.ACTION_DELIVERY_UPDATE);
+                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, order.getOrderId());
+                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_OUT_FOR_DELIVERY);
+                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "Order #" + order.getOrderId() + " is now OUT FOR DELIVERY! Van en route to " + order.getLocationName());
+                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, order.getBuyerLat());
+                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, order.getBuyerLng());
+                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, order.getLocationName());
+                        sendBroadcast(dispatchIntent);
 
                         Toast.makeText(SellerDashboardActivity.this,
                                 "Order #" + order.getOrderId() + " accepted! Driver live GPS tracking broadcast started.", Toast.LENGTH_SHORT).show();
@@ -493,7 +536,33 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
 
     @Override
     public void onViewGpsOnMap(final WaterOrder order) {
-        launchLiveMap(order);
+        if (order == null) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Delivery Navigation: " + order.getLocationName())
+                .setMessage("Choose your navigation view:\n• In-App Live Map (Real-time tracking)\n• Google Maps App (Turn-by-turn routing via Implicit Intent)")
+                .setPositiveButton("In-App Live Map", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface dialog, int which) {
+                        launchLiveMap(order);
+                    }
+                })
+                .setNeutralButton("Google Maps App", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(android.content.DialogInterface dialog, int which) {
+                        // Week 8 Syllabus: Implicit Intent (ACTION_VIEW with geo scheme)
+                        double lat = order.getBuyerLat() != 0.0 ? order.getBuyerLat() : 22.8998;
+                        double lng = order.getBuyerLng() != 0.0 ? order.getBuyerLng() : 89.5015;
+                        Uri gmmIntentUri = Uri.parse("geo:" + lat + "," + lng + "?q=" + Uri.encode(order.getLocationName()));
+                        Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+                        if (mapIntent.resolveActivity(getPackageManager()) != null) {
+                            startActivity(mapIntent);
+                        } else {
+                            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=" + lat + "," + lng)));
+                        }
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void showEditOrderDialog(final WaterOrder order) {
@@ -672,6 +741,13 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                 } catch (Exception ignored) {}
 
                 FirebaseManager.getInstance().getTelemetryRef(order.getOrderId()).removeValue();
+
+                // Week 10: Broadcast delivery completion alert
+                Intent deliveredBroadcast = new Intent(DeliveryStatusReceiver.ACTION_DELIVERY_UPDATE);
+                deliveredBroadcast.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, order.getOrderId());
+                deliveredBroadcast.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_DELIVERED);
+                deliveredBroadcast.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "✓ Delivery Completed! Cash & jars collected for Order #" + order.getOrderId());
+                sendBroadcast(deliveredBroadcast);
 
                 // Sound victory chime and vibration
                 try {
@@ -938,9 +1014,30 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         dialog.show();
     }
 
+    // --- Week 8 Syllabus: Activity Lifecycle Callbacks & Observation ---
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("AquaDropLifecycle", "SellerDashboardActivity: onStart() called");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d("AquaDropLifecycle", "SellerDashboardActivity: onPause() called");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d("AquaDropLifecycle", "SellerDashboardActivity: onStop() called");
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.d("AquaDropLifecycle", "SellerDashboardActivity: onDestroy() called");
         if (ordersListenerRegistration != null) {
             ordersListenerRegistration.remove();
         }

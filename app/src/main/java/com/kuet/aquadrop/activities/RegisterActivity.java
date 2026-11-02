@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -28,6 +29,7 @@ import com.kuet.aquadrop.utils.FirebaseManager;
 import com.kuet.aquadrop.utils.KuetLocations;
 
 import java.util.List;
+import java.util.Locale;
 
 public class RegisterActivity extends AppCompatActivity {
 
@@ -40,6 +42,8 @@ public class RegisterActivity extends AppCompatActivity {
     private Spinner spinnerLocation;
     private TextInputEditText etRoomOrFlat;
     private TextInputEditText etFloorNumber;
+    private LinearLayout llSellerAccessSection;
+    private TextInputEditText etSellerAccessKey;
     private MaterialButton btnRegister;
     private ProgressBar progressBar;
     private TextView tvGoToLogin;
@@ -64,6 +68,8 @@ public class RegisterActivity extends AppCompatActivity {
         spinnerLocation = findViewById(R.id.spinnerLocation);
         etRoomOrFlat = findViewById(R.id.etRoomOrFlat);
         etFloorNumber = findViewById(R.id.etFloorNumber);
+        llSellerAccessSection = findViewById(R.id.llSellerAccessSection);
+        etSellerAccessKey = findViewById(R.id.etSellerAccessKey);
         btnRegister = findViewById(R.id.btnRegister);
         progressBar = findViewById(R.id.progressBarRegister);
         tvGoToLogin = findViewById(R.id.tvGoToLogin);
@@ -81,6 +87,17 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void setupListeners() {
+        if (rgRole != null) {
+            rgRole.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(RadioGroup group, int checkedId) {
+                    if (llSellerAccessSection != null) {
+                        llSellerAccessSection.setVisibility(checkedId == R.id.rbSeller ? View.VISIBLE : View.GONE);
+                    }
+                }
+            });
+        }
+
         btnRegister.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -149,6 +166,36 @@ public class RegisterActivity extends AppCompatActivity {
         // Determine Selected Role
         final String role = rbSeller.isChecked() ? User.ROLE_SELLER : User.ROLE_BUYER;
 
+        // Seller Special Authorization Verification
+        final String sellerKeyInput;
+        if (rbSeller.isChecked()) {
+            String enteredKey = etSellerAccessKey != null && etSellerAccessKey.getText() != null
+                    ? etSellerAccessKey.getText().toString().trim() : "";
+            if (TextUtils.isEmpty(enteredKey)) {
+                if (etSellerAccessKey != null) {
+                    etSellerAccessKey.setError("Authority Special Access Key required for seller registration");
+                    etSellerAccessKey.requestFocus();
+                }
+                Toast.makeText(this, "Special Access Key is required for Seller accounts", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!isValidSellerAccessKey(enteredKey)) {
+                if (etSellerAccessKey != null) {
+                    etSellerAccessKey.setError("Invalid Access Key! Contact AquaDrop Authority (KUET).");
+                    etSellerAccessKey.requestFocus();
+                }
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("🔒 Special Access Restricted")
+                        .setMessage("Seller / Van accounts are restricted to authorized KUET depot personnel.\n\nYou must possess an official Special Access Key provided by the AquaDrop Authority to create a seller account.\n\nPlease contact administration or select 'Buyer / Consumer' to register.")
+                        .setPositiveButton("OK", null)
+                        .show();
+                return;
+            }
+            sellerKeyInput = enteredKey;
+        } else {
+            sellerKeyInput = "";
+        }
+
         // Selected KUET Location and GPS coordinates
         final String selectedLocation = (String) spinnerLocation.getSelectedItem();
         final LatLng latLng = KuetLocations.getLatLngByName(selectedLocation);
@@ -184,6 +231,8 @@ public class RegisterActivity extends AppCompatActivity {
                                     0,      // initial empty jars held
                                     0.0     // initial deposit balance
                             );
+                            newUser.setSellerAccessKey(sellerKeyInput);
+                            newUser.setSellerAuthorized(rbSeller.isChecked());
 
                             saveUserToFirestore(newUser);
                         } else {
@@ -218,6 +267,8 @@ public class RegisterActivity extends AppCompatActivity {
                                                         0,
                                                         0.0
                                                 );
+                                                updatedUser.setSellerAccessKey(sellerKeyInput);
+                                                updatedUser.setSellerAuthorized(rbSeller.isChecked());
                                                 saveUserToFirestore(updatedUser);
                                             } else {
                                                 setLoadingState(false);
@@ -282,6 +333,22 @@ public class RegisterActivity extends AppCompatActivity {
         spinnerLocation.setEnabled(!isLoading);
         rbBuyer.setEnabled(!isLoading);
         rbSeller.setEnabled(!isLoading);
+        if (etSellerAccessKey != null) {
+            etSellerAccessKey.setEnabled(!isLoading);
+        }
         tvGoToLogin.setEnabled(!isLoading);
+    }
+
+    public static boolean isValidSellerAccessKey(String key) {
+        if (key == null) return false;
+        String clean = key.trim().toUpperCase(Locale.ROOT);
+        return clean.equals("AQUADROP_SELLER_2026")
+                || clean.equals("KUET_ADMIN_AQUA")
+                || clean.equals("AQUA_SELLER_KEY")
+                || clean.equals("AQUA2026")
+                || clean.equals("SELLER77")
+                || clean.equals("KUETSELLER")
+                || clean.equals("AQUA_SELLER")
+                || clean.equals("SELLER123");
     }
 }

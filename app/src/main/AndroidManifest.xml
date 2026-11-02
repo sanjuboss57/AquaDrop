@@ -104,6 +104,24 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- BroadcastReceiver demonstrating Android Components (Week 10) -->
+        <receiver
+            android:name=".receivers.DeliveryStatusReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kuet.aquadrop.ACTION_DELIVERY_UPDATE" />
+                <action android:name="com.kuet.aquadrop.ACTION_ORDER_ALERT" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ContentProvider demonstrating Android Components (Week 10) -->
+        <provider
+            android:name=".providers.AquaDropContentProvider"
+            android:authorities="com.kuet.aquadrop.provider"
+            android:enabled="true"
+            android:exported="false" />
+
     </application>
 
 </manifest>

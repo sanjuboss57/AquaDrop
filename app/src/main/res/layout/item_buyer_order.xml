@@ -149,6 +149,19 @@
                 app:iconTint="@color/white" />
         </LinearLayout>
 
+        <!-- Cancel Order Action (Available when order is pending or before dispatch) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCancelOrder"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="38dp"
+            android:layout_marginTop="4dp"
+            android:text="Cancel Order"
+            android:textAllCaps="false"
+            android:textColor="#E53935"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

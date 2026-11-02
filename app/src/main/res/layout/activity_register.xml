@@ -87,6 +87,55 @@
                             android:textSize="14sp" />
                     </RadioGroup>
 
+                    <!-- Seller Special Authorization Section (Shown only if Seller selected) -->
+                    <LinearLayout
+                        android:id="@+id/llSellerAccessSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_rounded_card"
+                        android:backgroundTint="#FFF8E1"
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🔒 Special Access Required for Sellers"
+                            android:textColor="#B78103"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:layout_marginBottom="8dp"
+                            android:text="Seller and delivery van accounts require an official authorization key provided by the AquaDrop campus administration."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilSellerAccessKey"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Authority Special Access Key *"
+                            app:boxStrokeColor="@color/accent"
+                            app:hintTextColor="@color/accent"
+                            app:startIconDrawable="@drawable/ic_person"
+                            app:startIconTint="@color/accent">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etSellerAccessKey"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textCapCharacters"
+                                android:maxLines="1" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
+
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"

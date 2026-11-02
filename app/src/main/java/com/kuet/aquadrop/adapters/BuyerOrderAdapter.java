@@ -25,6 +25,7 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
     public interface OnOrderActionListener {
         void onTrackLiveClicked(WaterOrder order);
         void onShowQrClicked(WaterOrder order);
+        void onCancelOrderClicked(WaterOrder order);
     }
 
     private List<WaterOrder> orderList = new ArrayList<>();
@@ -69,6 +70,7 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
         private final TextView tvItemTotalPrice;
         private final MaterialButton btnTrackOrder;
         private final MaterialButton btnShowQr;
+        private final MaterialButton btnCancelOrder;
 
         public OrderViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -80,6 +82,7 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
             tvItemTotalPrice = itemView.findViewById(R.id.tvItemTotalPrice);
             btnTrackOrder = itemView.findViewById(R.id.btnTrackOrder);
             btnShowQr = itemView.findViewById(R.id.btnShowQr);
+            btnCancelOrder = itemView.findViewById(R.id.btnCancelOrder);
         }
 
         public void bind(final WaterOrder order) {
@@ -98,15 +101,22 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
 
             applyStatusStyle(status, order);
 
+            boolean isCancelled = WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
+            boolean isDelivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status);
+
             // "Track Live on Map" visible when ACCEPTED or OUT_FOR_DELIVERY
-            boolean canTrackLive = WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status)
-                    || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status);
+            boolean canTrackLive = !isCancelled && !isDelivered && (WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status)
+                    || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status));
             btnTrackOrder.setVisibility(canTrackLive ? View.VISIBLE : View.GONE);
             btnTrackOrder.setText("Track Delivery Live (GPS)");
 
-            // Handover QR button is active while order is being processed or on the way
-            boolean isDelivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status);
-            btnShowQr.setVisibility(isDelivered ? View.GONE : View.VISIBLE);
+            // Handover QR button is active while order is active and not delivered or cancelled
+            btnShowQr.setVisibility((isDelivered || isCancelled) ? View.GONE : View.VISIBLE);
+
+            // Cancel Order button is active while pending or accepted before driver is out for delivery
+            boolean canCancel = !isCancelled && !isDelivered && (WaterOrder.STATUS_PENDING.equalsIgnoreCase(status)
+                    || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status));
+            btnCancelOrder.setVisibility(canCancel ? View.VISIBLE : View.GONE);
 
             btnTrackOrder.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -125,6 +135,15 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
                     }
                 }
             });
+
+            btnCancelOrder.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (listener != null) {
+                        listener.onCancelOrderClicked(order);
+                    }
+                }
+            });
         }
 
         private void applyStatusStyle(String status, WaterOrder order) {
@@ -133,6 +152,11 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
             String etaText;
 
             switch (status) {
+                case WaterOrder.STATUS_CANCELLED:
+                    bgColor = Color.parseColor("#FFEBEE");
+                    textColor = Color.parseColor("#C62828");
+                    etaText = "✕ This order was cancelled by you";
+                    break;
                 case WaterOrder.STATUS_OUT_FOR_DELIVERY:
                     bgColor = Color.parseColor("#E0F7FA");
                     textColor = Color.parseColor("#00838F");

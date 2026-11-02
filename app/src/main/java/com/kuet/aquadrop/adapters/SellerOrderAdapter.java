@@ -174,6 +174,11 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
             tvDeliveredConfirmation.setVisibility(View.GONE);
 
             switch (status) {
+                case WaterOrder.STATUS_CANCELLED:
+                    tvDeliveredConfirmation.setVisibility(View.VISIBLE);
+                    tvDeliveredConfirmation.setText("✕ Cancelled by Buyer (Void)");
+                    tvDeliveredConfirmation.setTextColor(Color.parseColor("#C62828"));
+                    break;
                 case WaterOrder.STATUS_PENDING:
                     btnAcceptOrder.setVisibility(View.VISIBLE);
                     break;
@@ -187,11 +192,13 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
                     tvDeliveredConfirmation.setVisibility(View.VISIBLE);
                     tvDeliveredConfirmation.setText(String.format(Locale.getDefault(),
                             "✓ Delivered & Cash Collected: %.0f BDT", order.getTotalPrice()));
+                    tvDeliveredConfirmation.setTextColor(Color.parseColor("#2E7D32"));
                     break;
             }
 
             // Allow adjusting jar quantities & total price for any active orders
-            boolean canEdit = !WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status);
+            boolean canEdit = !WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
+                    && !WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
             btnEditOrder.setVisibility(canEdit ? View.VISIBLE : View.GONE);
             btnEditOrder.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -242,6 +249,10 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
             int textColor;
 
             switch (status) {
+                case WaterOrder.STATUS_CANCELLED:
+                    bgColor = Color.parseColor("#FFEBEE");
+                    textColor = Color.parseColor("#C62828");
+                    break;
                 case WaterOrder.STATUS_OUT_FOR_DELIVERY:
                     bgColor = Color.parseColor("#E0F7FA");
                     textColor = Color.parseColor("#00838F");

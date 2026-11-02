@@ -12,6 +12,7 @@ import android.location.Location;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
@@ -26,6 +27,8 @@ import com.google.android.gms.location.Priority;
 import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.activities.LiveTrackingActivity;
 import com.kuet.aquadrop.models.LiveTelemetry;
+import com.kuet.aquadrop.models.WaterOrder;
+import com.kuet.aquadrop.receivers.DeliveryStatusReceiver;
 import com.kuet.aquadrop.utils.EtaCalculator;
 import com.kuet.aquadrop.utils.FirebaseManager;
 
@@ -52,6 +55,7 @@ public class LocationBroadcastService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.d("AquaDropLifecycle", "LocationBroadcastService: onCreate() called");
         createNotificationChannel();
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
     }
@@ -67,6 +71,7 @@ public class LocationBroadcastService extends Service {
                 locationName = intent.getStringExtra("locationName");
             }
         }
+        Log.d("AquaDropLifecycle", "LocationBroadcastService: onStartCommand() started for Order: " + activeOrderId);
 
         Notification notification = buildForegroundNotification("Broadcasting Live Delivery Location to " + locationName);
         startForeground(NOTIFICATION_ID, notification);
@@ -162,6 +167,7 @@ public class LocationBroadcastService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        Log.d("AquaDropLifecycle", "LocationBroadcastService: onDestroy() called");
         if (fusedLocationClient != null && locationCallback != null) {
             fusedLocationClient.removeLocationUpdates(locationCallback);
         }
