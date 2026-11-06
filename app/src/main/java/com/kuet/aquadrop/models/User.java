@@ -1,6 +1,7 @@
 package com.kuet.aquadrop.models;
 
 import java.io.Serializable;
+import com.google.firebase.database.DataSnapshot;
 
 /**
  * Model representing a registered consumer (BUYER) or depot supplier (SELLER) in AquaDrop.
@@ -166,5 +167,88 @@ public class User implements Serializable {
 
     public void setSellerAuthorized(boolean sellerAuthorized) {
         this.sellerAuthorized = sellerAuthorized;
+    }
+
+    public static User fromDataSnapshot(DataSnapshot snapshot) {
+        if (snapshot == null || !snapshot.exists()) return null;
+        try {
+            User u = snapshot.getValue(User.class);
+            if (u != null) {
+                if (u.getUid() == null || u.getUid().isEmpty()) {
+                    u.setUid(snapshot.getKey());
+                }
+                return u;
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            User u = new User();
+            u.setUid(snapshot.getKey());
+            if (snapshot.hasChild("name") && snapshot.child("name").getValue() != null)
+                u.setName(String.valueOf(snapshot.child("name").getValue()));
+            if (snapshot.hasChild("email") && snapshot.child("email").getValue() != null)
+                u.setEmail(String.valueOf(snapshot.child("email").getValue()));
+            if (snapshot.hasChild("phone") && snapshot.child("phone").getValue() != null)
+                u.setPhone(String.valueOf(snapshot.child("phone").getValue()));
+            if (snapshot.hasChild("role") && snapshot.child("role").getValue() != null)
+                u.setRole(String.valueOf(snapshot.child("role").getValue()));
+            if (snapshot.hasChild("locationName") && snapshot.child("locationName").getValue() != null)
+                u.setLocationName(String.valueOf(snapshot.child("locationName").getValue()));
+            if (snapshot.hasChild("roomOrFlatNo") && snapshot.child("roomOrFlatNo").getValue() != null)
+                u.setRoomOrFlatNo(String.valueOf(snapshot.child("roomOrFlatNo").getValue()));
+
+            if (snapshot.hasChild("floorNumber") && snapshot.child("floorNumber").getValue() != null) {
+                Object v = snapshot.child("floorNumber").getValue();
+                if (v instanceof Number) u.setFloorNumber(((Number) v).intValue());
+                else {
+                    try { u.setFloorNumber(Integer.parseInt(String.valueOf(v))); } catch (Exception ignored) {}
+                }
+            }
+
+            if (snapshot.hasChild("latitude") && snapshot.child("latitude").getValue() != null) {
+                Object v = snapshot.child("latitude").getValue();
+                if (v instanceof Number) u.setLatitude(((Number) v).doubleValue());
+                else {
+                    try { u.setLatitude(Double.parseDouble(String.valueOf(v))); } catch (Exception ignored) {}
+                }
+            }
+
+            if (snapshot.hasChild("longitude") && snapshot.child("longitude").getValue() != null) {
+                Object v = snapshot.child("longitude").getValue();
+                if (v instanceof Number) u.setLongitude(((Number) v).doubleValue());
+                else {
+                    try { u.setLongitude(Double.parseDouble(String.valueOf(v))); } catch (Exception ignored) {}
+                }
+            }
+
+            if (snapshot.hasChild("emptyJarsHeld") && snapshot.child("emptyJarsHeld").getValue() != null) {
+                Object v = snapshot.child("emptyJarsHeld").getValue();
+                if (v instanceof Number) u.setEmptyJarsHeld(((Number) v).intValue());
+                else {
+                    try { u.setEmptyJarsHeld(Integer.parseInt(String.valueOf(v))); } catch (Exception ignored) {}
+                }
+            }
+
+            if (snapshot.hasChild("depositBalance") && snapshot.child("depositBalance").getValue() != null) {
+                Object v = snapshot.child("depositBalance").getValue();
+                if (v instanceof Number) u.setDepositBalance(((Number) v).doubleValue());
+                else {
+                    try { u.setDepositBalance(Double.parseDouble(String.valueOf(v))); } catch (Exception ignored) {}
+                }
+            }
+
+            if (snapshot.hasChild("sellerAccessKey") && snapshot.child("sellerAccessKey").getValue() != null)
+                u.setSellerAccessKey(String.valueOf(snapshot.child("sellerAccessKey").getValue()));
+
+            if (snapshot.hasChild("sellerAuthorized") && snapshot.child("sellerAuthorized").getValue() != null) {
+                Object v = snapshot.child("sellerAuthorized").getValue();
+                if (v instanceof Boolean) u.setSellerAuthorized((Boolean) v);
+                else u.setSellerAuthorized(Boolean.parseBoolean(String.valueOf(v)));
+            }
+
+            return u;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }

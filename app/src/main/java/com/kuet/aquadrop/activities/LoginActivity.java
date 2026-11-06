@@ -22,6 +22,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.button.MaterialButton;
@@ -29,6 +30,9 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.zxing.BarcodeFormat;
@@ -43,7 +47,7 @@ import java.io.OutputStream;
 
 public class LoginActivity extends AppCompatActivity {
 
-    public static final String APP_DOWNLOAD_URL = "https://files.catbox.moe/eobybc.apk";
+    public static final String APP_DOWNLOAD_URL = "https://litter.catbox.moe/a2y7tc.apk";
 
     private TextInputEditText etPhone;
     private TextInputEditText etPassword;
@@ -343,34 +347,69 @@ public class LoginActivity extends AppCompatActivity {
                 });
     }
 
-    private void fetchUserRoleAndNavigate(String uid) {
-        FirebaseManager.getInstance().getUsersRef().document(uid).get()
-                .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<DocumentSnapshot>() {
+    private void fetchUserRoleAndNavigate(final String uid) {
+        final java.util.concurrent.atomic.AtomicBoolean routed = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        // 1. Check Realtime Database first (guaranteed online access)
+        FirebaseManager.getInstance().getRtdbUsersRef().child(uid)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
-                    public void onSuccess(DocumentSnapshot documentSnapshot) {
-                        setLoadingState(false);
-                        if (documentSnapshot != null && documentSnapshot.exists()) {
-                            User user = documentSnapshot.toObject(User.class);
-                            if (user != null && User.ROLE_SELLER.equalsIgnoreCase(user.getRole())) {
-                                routeTo(SellerDashboardActivity.class);
-                            } else {
-                                routeTo(BuyerDashboardActivity.class);
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        if (snapshot.exists()) {
+                            User user = User.fromDataSnapshot(snapshot);
+                            if (user != null && routed.compareAndSet(false, true)) {
+                                setLoadingState(false);
+                                if (User.ROLE_SELLER.equalsIgnoreCase(user.getRole())) {
+                                    routeTo(SellerDashboardActivity.class);
+                                } else {
+                                    routeTo(BuyerDashboardActivity.class);
+                                }
                             }
-                        } else {
-                            // Default fallback if profile incomplete
-                            routeTo(BuyerDashboardActivity.class);
                         }
                     }
-                })
-                .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+
                     @Override
-                    public void onFailure(Exception e) {
-                        setLoadingState(false);
-                        Toast.makeText(LoginActivity.this, "Profile query failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                        // Proceed to default dashboard
-                        routeTo(BuyerDashboardActivity.class);
-                    }
+                    public void onCancelled(@NonNull DatabaseError error) {}
                 });
+
+        // 2. Also check Firestore in parallel
+        try {
+            FirebaseManager.getInstance().getUsersRef().document(uid).get()
+                    .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<DocumentSnapshot>() {
+                        @Override
+                        public void onSuccess(DocumentSnapshot documentSnapshot) {
+                            if (documentSnapshot != null && documentSnapshot.exists()) {
+                                User user = documentSnapshot.toObject(User.class);
+                                if (user != null && routed.compareAndSet(false, true)) {
+                                    setLoadingState(false);
+                                    if (User.ROLE_SELLER.equalsIgnoreCase(user.getRole())) {
+                                        routeTo(SellerDashboardActivity.class);
+                                    } else {
+                                        routeTo(BuyerDashboardActivity.class);
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            android.util.Log.d("LoginActivity", "Firestore role query note: " + e.getMessage());
+                        }
+                    });
+        } catch (Exception ignored) {}
+
+        // Timeout fallback after 3 seconds: if no profile found, prompt user or default
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (routed.compareAndSet(false, true)) {
+                    setLoadingState(false);
+                    // Check if current user is seller by checking any auth attributes or default to Buyer
+                    routeTo(BuyerDashboardActivity.class);
+                }
+            }
+        }, 3000);
     }
 
     private void routeTo(Class<?> target) {

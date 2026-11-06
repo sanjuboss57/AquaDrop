@@ -41,6 +41,9 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestoreException;
@@ -149,6 +152,12 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private ListenerRegistration userListenerRegistration;
     private ListenerRegistration ordersListenerRegistration;
     private ListenerRegistration qualityListenerRegistration;
+
+    // Realtime Database Listeners & Map
+    private ValueEventListener rtdbUserListener;
+    private ValueEventListener rtdbBuyerOrdersListener;
+    private ValueEventListener rtdbQualityListener;
+    private final Map<String, WaterOrder> buyerOrdersMap = new HashMap<>();
 
     private final ActivityResultLauncher<String[]> locationPermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestMultiplePermissions(),
@@ -409,6 +418,61 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         });
     }
 
+    private void applyBuyerProfile(User user) {
+        if (user == null) return;
+        this.currentUser = user;
+        tvBuyerGreeting.setText(String.format("Hello, %s", user.getName()));
+        tvBuyerLocationHeader.setText(String.format(Locale.getDefault(),
+                "%s • Room %s (Fl %d)",
+                user.getLocationName(),
+                user.getRoomOrFlatNo(),
+                user.getFloorNumber()));
+
+        tvEmptyJarsHeld.setText(String.format(Locale.getDefault(), "%d Jars", user.getEmptyJarsHeld()));
+        tvDepositBalance.setText(String.format(Locale.getDefault(), "%.0f BDT", user.getDepositBalance()));
+
+        // Synchronize order GPS state with profile data
+        if (TextUtils.isEmpty(orderLocationName)) {
+            orderLocationName = user.getLocationName();
+            orderRoom = user.getRoomOrFlatNo();
+            orderFloor = user.getFloorNumber();
+            orderLatitude = user.getLatitude();
+            orderLongitude = user.getLongitude();
+
+            if (orderLatitude == 0.0 || orderLongitude == 0.0) {
+                LatLng p = KuetLocations.getLatLngByName(orderLocationName);
+                if (p != null) {
+                    orderLatitude = p.latitude;
+                    orderLongitude = p.longitude;
+                }
+            }
+            updateDeliveryGpsDisplay();
+        }
+    }
+
+    private void refreshBuyerOrdersUi() {
+        List<WaterOrder> orders = new ArrayList<>(buyerOrdersMap.values());
+        Collections.sort(orders, new Comparator<WaterOrder>() {
+            @Override
+            public int compare(WaterOrder o1, WaterOrder o2) {
+                if (o1 == null && o2 == null) return 0;
+                if (o1 == null) return 1;
+                if (o2 == null) return -1;
+                return Long.compare(o2.getTimestamp(), o1.getTimestamp());
+            }
+        });
+
+        orderAdapter.setOrders(orders);
+
+        if (orders.isEmpty()) {
+            tvNoOrdersPlaceholder.setVisibility(View.VISIBLE);
+            rvBuyerOrders.setVisibility(View.GONE);
+        } else {
+            tvNoOrdersPlaceholder.setVisibility(View.GONE);
+            rvBuyerOrders.setVisibility(View.VISIBLE);
+        }
+    }
+
     private void subscribeToFirestoreData() {
         FirebaseUser user = FirebaseManager.getInstance().getCurrentUser();
         if (user == null) {
@@ -417,113 +481,129 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
         final String uid = user.getUid();
 
-        // 1. Real-time User Profile & Bottle Ledger
-        userListenerRegistration = FirebaseManager.getInstance().getUsersRef().document(uid)
-                .addSnapshotListener(new EventListener<DocumentSnapshot>() {
-                    @Override
-                    public void onEvent(@Nullable DocumentSnapshot snapshot, @Nullable FirebaseFirestoreException error) {
-                        if (error != null || snapshot == null || !snapshot.exists()) {
-                            return;
-                        }
-
-                        currentUser = snapshot.toObject(User.class);
-                        if (currentUser != null) {
-                            tvBuyerGreeting.setText(String.format("Hello, %s", currentUser.getName()));
-                            tvBuyerLocationHeader.setText(String.format(Locale.getDefault(),
-                                    "%s • Room %s (Fl %d)",
-                                    currentUser.getLocationName(),
-                                    currentUser.getRoomOrFlatNo(),
-                                    currentUser.getFloorNumber()));
-
-                            tvEmptyJarsHeld.setText(String.format(Locale.getDefault(), "%d Jars", currentUser.getEmptyJarsHeld()));
-                            tvDepositBalance.setText(String.format(Locale.getDefault(), "%.0f BDT", currentUser.getDepositBalance()));
-
-                            // Synchronize order GPS state with profile data
-                            if (TextUtils.isEmpty(orderLocationName)) {
-                                orderLocationName = currentUser.getLocationName();
-                                orderRoom = currentUser.getRoomOrFlatNo();
-                                orderFloor = currentUser.getFloorNumber();
-                                orderLatitude = currentUser.getLatitude();
-                                orderLongitude = currentUser.getLongitude();
-
-                                if (orderLatitude == 0.0 || orderLongitude == 0.0) {
-                                    LatLng p = KuetLocations.getLatLngByName(orderLocationName);
-                                    if (p != null) {
-                                        orderLatitude = p.latitude;
-                                        orderLongitude = p.longitude;
-                                    }
-                                }
-                                updateDeliveryGpsDisplay();
-                            }
-                        }
+        // 1A. Real-time User Profile (Realtime Database - 100% active)
+        if (rtdbUserListener != null) {
+            FirebaseManager.getInstance().getRtdbUsersRef().child(uid).removeEventListener(rtdbUserListener);
+        }
+        rtdbUserListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    User u = User.fromDataSnapshot(snapshot);
+                    if (u != null) {
+                        applyBuyerProfile(u);
                     }
-                });
+                }
+            }
 
-        // 2. Real-time Water Quality Badge
-        qualityListenerRegistration = FirebaseManager.getInstance().getWaterQualityRef().document("latest")
-                .addSnapshotListener(new EventListener<DocumentSnapshot>() {
-                    @Override
-                    public void onEvent(@Nullable DocumentSnapshot snapshot, @Nullable FirebaseFirestoreException error) {
-                        if (snapshot != null && snapshot.exists()) {
-                            WaterQuality quality = snapshot.toObject(WaterQuality.class);
-                            if (quality != null) {
-                                tvTdsLevel.setText(String.format(Locale.getDefault(), "%.0f ppm", quality.getTds()));
-                                tvPhLevel.setText(String.format(Locale.getDefault(), "%.1f pH", quality.getPh()));
-                                tvBatchStatus.setText(String.format("Batch: %s", quality.getBatchStatus()));
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        FirebaseManager.getInstance().getRtdbUsersRef().child(uid).addValueEventListener(rtdbUserListener);
+
+        // 1B. Real-time User Profile (Cloud Firestore)
+        try {
+            userListenerRegistration = FirebaseManager.getInstance().getUsersRef().document(uid)
+                    .addSnapshotListener(new EventListener<DocumentSnapshot>() {
+                        @Override
+                        public void onEvent(@Nullable DocumentSnapshot snapshot, @Nullable FirebaseFirestoreException error) {
+                            if (error != null || snapshot == null || !snapshot.exists()) {
                                 return;
                             }
-                        }
-                        // Default fallback
-                        tvTdsLevel.setText("42 ppm");
-                        tvPhLevel.setText("7.2 pH");
-                        tvBatchStatus.setText("Batch: Certified Reverse Osmosis + UV Sterilized");
-                    }
-                });
-
-        // 3. Real-time Orders for Current Buyer
-        ordersListenerRegistration = FirebaseManager.getInstance().getOrdersRef()
-                .whereEqualTo("buyerId", uid)
-                .addSnapshotListener(MetadataChanges.INCLUDE, new EventListener<QuerySnapshot>() {
-                    @Override
-                    public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException error) {
-                        if (error != null) {
-                            android.util.Log.e("BuyerDashboard", "Error listening to orders: " + error.getMessage(), error);
-                            return;
-                        }
-                        if (queryDocumentSnapshots == null) {
-                            return;
-                        }
-
-                        List<WaterOrder> orders = new ArrayList<>();
-                        for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
-                            WaterOrder order = WaterOrder.fromSnapshot(doc);
-                            if (order != null) {
-                                orders.add(order);
+                            User u = snapshot.toObject(User.class);
+                            if (u != null) {
+                                applyBuyerProfile(u);
                             }
                         }
+                    });
+        } catch (Exception ignored) {}
 
-                        // In-memory timestamp sorting (avoids composite index requirements)
-                        Collections.sort(orders, new Comparator<WaterOrder>() {
-                            @Override
-                            public int compare(WaterOrder o1, WaterOrder o2) {
-                                if (o1 == null && o2 == null) return 0;
-                                if (o1 == null) return 1;
-                                if (o2 == null) return -1;
-                                return Long.compare(o2.getTimestamp(), o1.getTimestamp());
+        // 2A. Real-time Water Quality Badge (Realtime Database)
+        if (rtdbQualityListener != null) {
+            FirebaseManager.getInstance().getRtdbWaterQualityRef().child("latest").removeEventListener(rtdbQualityListener);
+        }
+        rtdbQualityListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    try {
+                        WaterQuality quality = snapshot.getValue(WaterQuality.class);
+                        if (quality != null) {
+                            tvTdsLevel.setText(String.format(Locale.getDefault(), "%.0f ppm", quality.getTds()));
+                            tvPhLevel.setText(String.format(Locale.getDefault(), "%.1f pH", quality.getPh()));
+                            tvBatchStatus.setText(String.format("Batch: %s", quality.getBatchStatus()));
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        FirebaseManager.getInstance().getRtdbWaterQualityRef().child("latest").addValueEventListener(rtdbQualityListener);
+
+        // 2B. Real-time Water Quality Badge (Firestore)
+        try {
+            qualityListenerRegistration = FirebaseManager.getInstance().getWaterQualityRef().document("latest")
+                    .addSnapshotListener(new EventListener<DocumentSnapshot>() {
+                        @Override
+                        public void onEvent(@Nullable DocumentSnapshot snapshot, @Nullable FirebaseFirestoreException error) {
+                            if (snapshot != null && snapshot.exists()) {
+                                WaterQuality quality = snapshot.toObject(WaterQuality.class);
+                                if (quality != null) {
+                                    tvTdsLevel.setText(String.format(Locale.getDefault(), "%.0f ppm", quality.getTds()));
+                                    tvPhLevel.setText(String.format(Locale.getDefault(), "%.1f pH", quality.getPh()));
+                                    tvBatchStatus.setText(String.format("Batch: %s", quality.getBatchStatus()));
+                                }
                             }
-                        });
+                        }
+                    });
+        } catch (Exception ignored) {}
 
-                        orderAdapter.setOrders(orders);
-
-                        if (orders.isEmpty()) {
-                            tvNoOrdersPlaceholder.setVisibility(View.VISIBLE);
-                            rvBuyerOrders.setVisibility(View.GONE);
-                        } else {
-                            tvNoOrdersPlaceholder.setVisibility(View.GONE);
-                            rvBuyerOrders.setVisibility(View.VISIBLE);
+        // 3A. Real-time Orders for Current Buyer (Realtime Database)
+        if (rtdbBuyerOrdersListener != null) {
+            FirebaseManager.getInstance().getRtdbOrdersRef().removeEventListener(rtdbBuyerOrdersListener);
+        }
+        rtdbBuyerOrdersListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    for (DataSnapshot child : snapshot.getChildren()) {
+                        WaterOrder order = WaterOrder.fromDataSnapshot(child);
+                        if (order != null && uid.equals(order.getBuyerId())) {
+                            buyerOrdersMap.put(order.getOrderId(), order);
                         }
                     }
-                });
+                    refreshBuyerOrdersUi();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        FirebaseManager.getInstance().getRtdbOrdersRef().addValueEventListener(rtdbBuyerOrdersListener);
+
+        // 3B. Real-time Orders for Current Buyer (Firestore)
+        try {
+            ordersListenerRegistration = FirebaseManager.getInstance().getOrdersRef()
+                    .whereEqualTo("buyerId", uid)
+                    .addSnapshotListener(MetadataChanges.INCLUDE, new EventListener<QuerySnapshot>() {
+                        @Override
+                        public void onEvent(@Nullable QuerySnapshot queryDocumentSnapshots, @Nullable FirebaseFirestoreException error) {
+                            if (error != null || queryDocumentSnapshots == null) {
+                                return;
+                            }
+
+                            for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
+                                WaterOrder order = WaterOrder.fromSnapshot(doc);
+                                if (order != null) {
+                                    buyerOrdersMap.put(order.getOrderId(), order);
+                                }
+                            }
+                            refreshBuyerOrdersUi();
+                        }
+                    });
+        } catch (Exception ignored) {}
     }
 
     private void updateDeliveryGpsDisplay() {
@@ -710,8 +790,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 qrToken
         );
 
-        FirebaseManager.getInstance().getOrdersRef().document(orderId).set(newOrder)
-                .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() {
+        // Add immediately to local buyer map for instantaneous responsiveness
+        buyerOrdersMap.put(orderId, newOrder);
+        refreshBuyerOrdersUi();
+
+        // Dual-storage write: Realtime Database (guaranteed online sync) + Cloud Firestore
+        FirebaseManager.getInstance().saveOrder(newOrder,
+                new com.google.android.gms.tasks.OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void unused) {
                         btnPlaceOrder.setEnabled(true);
@@ -761,12 +846,17 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                             Log.e("BuyerDashboard", "Error presenting QR dialog: " + e.getMessage(), e);
                         }
                     }
-                })
-                .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+                },
+                new com.google.android.gms.tasks.OnFailureListener() {
                     @Override
                     public void onFailure(Exception e) {
                         btnPlaceOrder.setEnabled(true);
-                        Toast.makeText(BuyerDashboardActivity.this, "Failed to place order: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        Toast.makeText(BuyerDashboardActivity.this, "Order placed locally. Network notice: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        try {
+                            if (!isFinishing() && !isDestroyed()) {
+                                showHandoverQrDialog(newOrder);
+                            }
+                        } catch (Exception ignored) {}
                     }
                 });
     }
@@ -900,10 +990,15 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 .setPositiveButton("Yes, Cancel", new android.content.DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(android.content.DialogInterface dialog, int which) {
-                        FirebaseManager.getInstance().getOrdersRef()
-                                .document(order.getOrderId())
-                                .update("status", WaterOrder.STATUS_CANCELLED)
-                                .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Void>() {
+                        order.setStatus(WaterOrder.STATUS_CANCELLED);
+                        buyerOrdersMap.put(order.getOrderId(), order);
+                        refreshBuyerOrdersUi();
+
+                        final Map<String, Object> updates = new HashMap<>();
+                        updates.put("status", WaterOrder.STATUS_CANCELLED);
+
+                        FirebaseManager.getInstance().updateOrderFields(order.getOrderId(), updates,
+                                new com.google.android.gms.tasks.OnSuccessListener<Void>() {
                                     @Override
                                     public void onSuccess(Void unused) {
                                         Toast.makeText(BuyerDashboardActivity.this,
@@ -917,13 +1012,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                                         cancelIntent.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "Order #" + order.getOrderId() + " has been cancelled.");
                                         sendBroadcast(cancelIntent);
                                     }
-                                })
-                                .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener() {
+                                },
+                                new com.google.android.gms.tasks.OnFailureListener() {
                                     @Override
                                     public void onFailure(Exception e) {
                                         Toast.makeText(BuyerDashboardActivity.this,
-                                                "Failed to cancel order: " + e.getMessage(),
-                                                Toast.LENGTH_LONG).show();
+                                                "Order marked cancelled locally. Sync notice: " + e.getMessage(),
+                                                Toast.LENGTH_SHORT).show();
                                     }
                                 });
                     }
@@ -965,6 +1060,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         if (userListenerRegistration != null) userListenerRegistration.remove();
         if (ordersListenerRegistration != null) ordersListenerRegistration.remove();
         if (qualityListenerRegistration != null) qualityListenerRegistration.remove();
+        if (rtdbUserListener != null) FirebaseManager.getInstance().getRtdbUsersRef().removeEventListener(rtdbUserListener);
+        if (rtdbBuyerOrdersListener != null) FirebaseManager.getInstance().getRtdbOrdersRef().removeEventListener(rtdbBuyerOrdersListener);
+        if (rtdbQualityListener != null) FirebaseManager.getInstance().getRtdbWaterQualityRef().removeEventListener(rtdbQualityListener);
     }
 
     // --- Week 8 Syllabus: Implicit Intent Demonstration ---

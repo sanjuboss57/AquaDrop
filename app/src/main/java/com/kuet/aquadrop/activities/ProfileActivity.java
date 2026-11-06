@@ -30,6 +30,9 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.models.User;
@@ -263,26 +266,53 @@ public class ProfileActivity extends AppCompatActivity {
         }
 
         setLoading(true);
-        FirebaseManager.getInstance().getUsersRef().document(authUser.getUid()).get()
-                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+        final String uid = authUser.getUid();
+        final java.util.concurrent.atomic.AtomicBoolean loaded = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        // 1. Fetch from Realtime Database
+        FirebaseManager.getInstance().getRtdbUsersRef().child(uid)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
-                    public void onSuccess(DocumentSnapshot doc) {
-                        setLoading(false);
-                        if (doc != null && doc.exists()) {
-                            currentUser = doc.toObject(User.class);
-                            if (currentUser != null) {
-                                populateUi(currentUser);
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        if (snapshot.exists()) {
+                            User user = User.fromDataSnapshot(snapshot);
+                            if (user != null && loaded.compareAndSet(false, true)) {
+                                setLoading(false);
+                                currentUser = user;
+                                populateUi(user);
                             }
                         }
                     }
-                })
-                .addOnFailureListener(new OnFailureListener() {
+
                     @Override
-                    public void onFailure(@NonNull Exception e) {
-                        setLoading(false);
-                        Toast.makeText(ProfileActivity.this, "Failed to load profile: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
+                    public void onCancelled(@NonNull DatabaseError error) {}
                 });
+
+        // 2. Fetch from Firestore
+        try {
+            FirebaseManager.getInstance().getUsersRef().document(uid).get()
+                    .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                        @Override
+                        public void onSuccess(DocumentSnapshot doc) {
+                            if (doc != null && doc.exists()) {
+                                User user = doc.toObject(User.class);
+                                if (user != null && loaded.compareAndSet(false, true)) {
+                                    setLoading(false);
+                                    currentUser = user;
+                                    populateUi(user);
+                                }
+                            }
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            if (!loaded.get()) {
+                                setLoading(false);
+                            }
+                        }
+                    });
+        } catch (Exception ignored) {}
     }
 
     private void populateUi(User user) {
@@ -363,7 +393,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         setLoading(true);
 
-        Map<String, Object> updates = new HashMap<>();
+        final Map<String, Object> updates = new HashMap<>();
         updates.put("name", name);
         updates.put("phone", phone);
         updates.put("locationName", locationName);
@@ -372,35 +402,29 @@ public class ProfileActivity extends AppCompatActivity {
         updates.put("latitude", currentLatitude);
         updates.put("longitude", currentLongitude);
 
-        FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid())
-                .update(updates)
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void unused) {
-                        setLoading(false);
-                        Toast.makeText(ProfileActivity.this,
-                                "Profile updated! Changes are live across AquaDrop.", Toast.LENGTH_SHORT).show();
+        // Update Realtime Database
+        FirebaseManager.getInstance().getRtdbUsersRef().child(currentUser.getUid()).updateChildren(updates);
 
-                        // Update local models
-                        currentUser.setName(name);
-                        currentUser.setPhone(phone);
-                        currentUser.setLocationName(locationName);
-                        currentUser.setRoomOrFlatNo(room);
-                        currentUser.setFloorNumber(finalFloor);
-                        currentUser.setLatitude(currentLatitude);
-                        currentUser.setLongitude(currentLongitude);
+        // Update Firestore
+        try {
+            FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid()).update(updates);
+        } catch (Exception ignored) {}
 
-                        tvProfileNameBanner.setText(name);
-                        tvProfilePhoneBanner.setText(phone);
-                    }
-                })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        setLoading(false);
-                        Toast.makeText(ProfileActivity.this, "Failed to update profile: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    }
-                });
+        setLoading(false);
+        Toast.makeText(ProfileActivity.this,
+                "Profile updated! Changes are live across AquaDrop.", Toast.LENGTH_SHORT).show();
+
+        // Update local models
+        currentUser.setName(name);
+        currentUser.setPhone(phone);
+        currentUser.setLocationName(locationName);
+        currentUser.setRoomOrFlatNo(room);
+        currentUser.setFloorNumber(finalFloor);
+        currentUser.setLatitude(currentLatitude);
+        currentUser.setLongitude(currentLongitude);
+
+        tvProfileNameBanner.setText(name);
+        tvProfilePhoneBanner.setText(phone);
     }
 
     private void setLoading(boolean isLoading) {

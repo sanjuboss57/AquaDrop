@@ -3,6 +3,7 @@ package com.kuet.aquadrop.models;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.PropertyName;
 
@@ -141,6 +142,112 @@ public class WaterOrder implements Serializable {
             minimal.setStatus(STATUS_PENDING);
             return minimal;
         }
+    }
+
+    /**
+     * Resilient deserializer for Firebase Realtime Database DataSnapshot.
+     */
+    public static WaterOrder fromDataSnapshot(DataSnapshot snapshot) {
+        if (snapshot == null || !snapshot.exists()) {
+            return null;
+        }
+
+        try {
+            WaterOrder order = snapshot.getValue(WaterOrder.class);
+            if (order != null) {
+                if (TextUtils.isEmpty(order.getOrderId())) {
+                    order.setOrderId(snapshot.getKey());
+                }
+                return order;
+            }
+        } catch (Throwable t) {
+            Log.w("WaterOrder", "RTDB POJO conversion failed for key " + snapshot.getKey() + ": " + t.getMessage());
+        }
+
+        // Resilient fallback manual mapping
+        try {
+            WaterOrder order = new WaterOrder();
+            order.setOrderId(safeRtdbString(snapshot, "orderId", snapshot.getKey()));
+            order.setBuyerId(safeRtdbString(snapshot, "buyerId", ""));
+            order.setBuyerName(safeRtdbString(snapshot, "buyerName", "AquaDrop Customer"));
+            order.setBuyerPhone(safeRtdbString(snapshot, "buyerPhone", ""));
+            order.setLocationName(safeRtdbString(snapshot, "locationName", "Campus Location"));
+            order.setRoomOrFlatNo(safeRtdbString(snapshot, "roomOrFlatNo", ""));
+            order.setFloorNumber(safeRtdbInt(snapshot, "floorNumber", 1));
+
+            order.setBuyerLat(safeRtdbDouble(snapshot, "buyerLat", 0.0));
+            order.setBuyerLng(safeRtdbDouble(snapshot, "buyerLng", 0.0));
+
+            order.setJarRefillCount(safeRtdbInt(snapshot, "jarRefillCount", 1));
+            order.setNewJarWithDepositCount(safeRtdbInt(snapshot, "newJarWithDepositCount", 0));
+            order.setEmptyJarsToReturn(safeRtdbInt(snapshot, "emptyJarsToReturn", 0));
+            order.setTotalPrice(safeRtdbDouble(snapshot, "totalPrice", 0.0));
+
+            order.setPaymentMethod(safeRtdbString(snapshot, "paymentMethod", PAYMENT_CASH));
+            order.setBkashTrxId(safeRtdbString(snapshot, "bkashTrxId", ""));
+
+            boolean urgent = safeRtdbBoolean(snapshot, "urgent", false);
+            if (!urgent) urgent = safeRtdbBoolean(snapshot, "isUrgent", false);
+            order.setUrgent(urgent);
+
+            order.setStatus(safeRtdbString(snapshot, "status", STATUS_PENDING));
+            order.setTimestamp(safeRtdbLong(snapshot, "timestamp", System.currentTimeMillis()));
+            order.setQrToken(safeRtdbString(snapshot, "qrToken", ""));
+            order.setSellerId(safeRtdbString(snapshot, "sellerId", ""));
+            order.setDeliveredDate(safeRtdbString(snapshot, "deliveredDate", ""));
+            order.setDeliveredTimestamp(safeRtdbLong(snapshot, "deliveredTimestamp", 0L));
+
+            return order;
+        } catch (Throwable t) {
+            Log.e("WaterOrder", "Manual RTDB deserialization error for key " + snapshot.getKey(), t);
+            WaterOrder minimal = new WaterOrder();
+            minimal.setOrderId(snapshot.getKey());
+            minimal.setStatus(STATUS_PENDING);
+            return minimal;
+        }
+    }
+
+    private static String safeRtdbString(DataSnapshot snapshot, String field, String fallback) {
+        if (snapshot == null || !snapshot.hasChild(field) || snapshot.child(field).getValue() == null) return fallback;
+        return String.valueOf(snapshot.child(field).getValue());
+    }
+
+    private static int safeRtdbInt(DataSnapshot snapshot, String field, int fallback) {
+        if (snapshot == null || !snapshot.hasChild(field) || snapshot.child(field).getValue() == null) return fallback;
+        Object val = snapshot.child(field).getValue();
+        if (val instanceof Number) return ((Number) val).intValue();
+        if (val instanceof String) {
+            try { return Integer.parseInt(((String) val).trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private static double safeRtdbDouble(DataSnapshot snapshot, String field, double fallback) {
+        if (snapshot == null || !snapshot.hasChild(field) || snapshot.child(field).getValue() == null) return fallback;
+        Object val = snapshot.child(field).getValue();
+        if (val instanceof Number) return ((Number) val).doubleValue();
+        if (val instanceof String) {
+            try { return Double.parseDouble(((String) val).trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private static long safeRtdbLong(DataSnapshot snapshot, String field, long fallback) {
+        if (snapshot == null || !snapshot.hasChild(field) || snapshot.child(field).getValue() == null) return fallback;
+        Object val = snapshot.child(field).getValue();
+        if (val instanceof Number) return ((Number) val).longValue();
+        if (val instanceof String) {
+            try { return Long.parseLong(((String) val).trim()); } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private static boolean safeRtdbBoolean(DataSnapshot snapshot, String field, boolean fallback) {
+        if (snapshot == null || !snapshot.hasChild(field) || snapshot.child(field).getValue() == null) return fallback;
+        Object val = snapshot.child(field).getValue();
+        if (val instanceof Boolean) return (Boolean) val;
+        if (val instanceof String) return Boolean.parseBoolean(((String) val).trim());
+        return fallback;
     }
 
     private static String safeString(DocumentSnapshot doc, String field, String fallback) {

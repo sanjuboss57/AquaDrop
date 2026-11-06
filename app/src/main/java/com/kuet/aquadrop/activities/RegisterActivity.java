@@ -234,7 +234,7 @@ public class RegisterActivity extends AppCompatActivity {
                             newUser.setSellerAccessKey(sellerKeyInput);
                             newUser.setSellerAuthorized(rbSeller.isChecked());
 
-                            saveUserToFirestore(newUser);
+                            saveUserProfile(newUser);
                         } else {
                             setLoadingState(false);
                             Toast.makeText(RegisterActivity.this, "Authentication failed.", Toast.LENGTH_SHORT).show();
@@ -269,7 +269,7 @@ public class RegisterActivity extends AppCompatActivity {
                                                 );
                                                 updatedUser.setSellerAccessKey(sellerKeyInput);
                                                 updatedUser.setSellerAuthorized(rbSeller.isChecked());
-                                                saveUserToFirestore(updatedUser);
+                                                saveUserProfile(updatedUser);
                                             } else {
                                                 setLoadingState(false);
                                                 Toast.makeText(RegisterActivity.this, "Authentication failed.", Toast.LENGTH_SHORT).show();
@@ -280,11 +280,17 @@ public class RegisterActivity extends AppCompatActivity {
                                         @Override
                                         public void onFailure(Exception signErr) {
                                             setLoadingState(false);
-                                            Toast.makeText(RegisterActivity.this, "This phone is already registered. Redirecting to login...", Toast.LENGTH_LONG).show();
-                                            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                                            intent.putExtra("prefillPhone", normalizedPhone);
-                                            startActivity(intent);
-                                            finish();
+                                            new androidx.appcompat.app.AlertDialog.Builder(RegisterActivity.this)
+                                                    .setTitle("Phone Already Registered")
+                                                    .setMessage("Phone " + normalizedPhone + " is already registered with a different password.\n\nPlease log in using your existing password, or enter the password previously used.")
+                                                    .setPositiveButton("Go to Login", (dialog, which) -> {
+                                                        Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                                                        intent.putExtra("prefillPhone", normalizedPhone);
+                                                        startActivity(intent);
+                                                        finish();
+                                                    })
+                                                    .setNegativeButton("Cancel", null)
+                                                    .show();
                                         }
                                     });
                         } else {
@@ -295,9 +301,9 @@ public class RegisterActivity extends AppCompatActivity {
                 });
     }
 
-    private void saveUserToFirestore(final User user) {
-        FirebaseManager.getInstance().getUsersRef().document(user.getUid()).set(user)
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
+    private void saveUserProfile(final User user) {
+        FirebaseManager.getInstance().saveUser(user,
+                new OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void unused) {
                         setLoadingState(false);
@@ -312,12 +318,21 @@ public class RegisterActivity extends AppCompatActivity {
                         startActivity(intent);
                         finish();
                     }
-                })
-                .addOnFailureListener(new OnFailureListener() {
+                },
+                new OnFailureListener() {
                     @Override
                     public void onFailure(Exception e) {
                         setLoadingState(false);
-                        Toast.makeText(RegisterActivity.this, "Failed to save profile: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        Toast.makeText(RegisterActivity.this, "Warning saving profile: " + e.getMessage(), Toast.LENGTH_LONG).show();
+
+                        // Still proceed since user is authenticated
+                        Class<?> targetActivity = user.isSeller()
+                                ? SellerDashboardActivity.class
+                                : BuyerDashboardActivity.class;
+                        Intent intent = new Intent(RegisterActivity.this, targetActivity);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(intent);
+                        finish();
                     }
                 });
     }
