@@ -64,6 +64,7 @@ public class ProfileActivity extends AppCompatActivity {
     private Spinner spinnerProfileLocation;
     private TextInputEditText etProfileRoom;
     private TextInputEditText etProfileFloor;
+    private TextInputEditText etProfileLocationNotes;
 
     // GPS views
     private TextView tvProfileGpsCoords;
@@ -122,6 +123,7 @@ public class ProfileActivity extends AppCompatActivity {
         spinnerProfileLocation = findViewById(R.id.spinnerProfileLocation);
         etProfileRoom = findViewById(R.id.etProfileRoom);
         etProfileFloor = findViewById(R.id.etProfileFloor);
+        etProfileLocationNotes = findViewById(R.id.etProfileLocationNotes);
 
         tvProfileGpsCoords = findViewById(R.id.tvProfileGpsCoords);
         btnProfileGpsFromPreset = findViewById(R.id.btnProfileGpsFromPreset);
@@ -328,6 +330,9 @@ public class ProfileActivity extends AppCompatActivity {
         etProfilePhone.setText(user.getPhone());
         etProfileRoom.setText(user.getRoomOrFlatNo());
         etProfileFloor.setText(String.valueOf(user.getFloorNumber()));
+        if (etProfileLocationNotes != null && !TextUtils.isEmpty(user.getLocationNotes())) {
+            etProfileLocationNotes.setText(user.getLocationNotes());
+        }
 
         // Set spinner selection
         List<String> locations = KuetLocations.getLocationNames();
@@ -399,6 +404,9 @@ public class ProfileActivity extends AppCompatActivity {
         updates.put("locationName", locationName);
         updates.put("roomOrFlatNo", room);
         updates.put("floorNumber", finalFloor);
+        String locationNotes = etProfileLocationNotes != null && etProfileLocationNotes.getText() != null
+                ? etProfileLocationNotes.getText().toString().trim() : "";
+        updates.put("locationNotes", locationNotes);
         updates.put("latitude", currentLatitude);
         updates.put("longitude", currentLongitude);
 
@@ -420,6 +428,7 @@ public class ProfileActivity extends AppCompatActivity {
         currentUser.setLocationName(locationName);
         currentUser.setRoomOrFlatNo(room);
         currentUser.setFloorNumber(finalFloor);
+        currentUser.setLocationNotes(locationNotes);
         currentUser.setLatitude(currentLatitude);
         currentUser.setLongitude(currentLongitude);
 

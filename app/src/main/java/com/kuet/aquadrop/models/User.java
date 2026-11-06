@@ -25,6 +25,7 @@ public class User implements Serializable {
     private double depositBalance;
     private String sellerAccessKey;
     private boolean sellerAuthorized;
+    private String locationNotes; // Optional exact directions or landmark notes
 
     // Required empty constructor for Firestore deserialization
     public User() {
@@ -169,6 +170,14 @@ public class User implements Serializable {
         this.sellerAuthorized = sellerAuthorized;
     }
 
+    public String getLocationNotes() {
+        return locationNotes;
+    }
+
+    public void setLocationNotes(String locationNotes) {
+        this.locationNotes = locationNotes;
+    }
+
     public static User fromDataSnapshot(DataSnapshot snapshot) {
         if (snapshot == null || !snapshot.exists()) return null;
         try {
@@ -239,6 +248,9 @@ public class User implements Serializable {
 
             if (snapshot.hasChild("sellerAccessKey") && snapshot.child("sellerAccessKey").getValue() != null)
                 u.setSellerAccessKey(String.valueOf(snapshot.child("sellerAccessKey").getValue()));
+
+            if (snapshot.hasChild("locationNotes") && snapshot.child("locationNotes").getValue() != null)
+                u.setLocationNotes(String.valueOf(snapshot.child("locationNotes").getValue()));
 
             if (snapshot.hasChild("sellerAuthorized") && snapshot.child("sellerAuthorized").getValue() != null) {
                 Object v = snapshot.child("sellerAuthorized").getValue();

@@ -2,12 +2,19 @@ package com.kuet.aquadrop.activities;
 
 import android.Manifest;
 import android.app.Dialog;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.location.Location;
+import android.os.Build;
 import android.os.Bundle;
+import androidx.core.app.NotificationCompat;
+import com.google.android.material.card.MaterialCardView;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
@@ -81,6 +88,16 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private static final int SECURITY_DEPOSIT_PER_JAR = 200;
     private static final int EXPRESS_DELIVERY_SURCHARGE = 15;
 
+    // Gate Arrival Live Alert Banner Views & State
+    private MaterialCardView cardGateAlertBanner;
+    private TextView tvGateAlertMessage;
+    private ImageView ivDismissGateAlert;
+    private ValueEventListener rtdbGateAlertListener;
+    private DataSnapshot latestGateAlertSnapshot;
+    private long lastNotifiedGateAlertTimestamp = 0;
+    private boolean gateAlertDismissedByUser = false;
+    private long lastDismissedAlertTimestamp = 0;
+
     // Header Views
     private TextView tvBuyerGreeting;
     private TextView tvBuyerLocationHeader;
@@ -120,6 +137,8 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
     private TextView tvDepositNotice;
     private CheckBox cbExpressDelivery;
+    private TextView tvExpressAlertNotice;
+    private TextInputEditText etExactLocationDirections;
 
     private RadioGroup rgPaymentMethod;
     private RadioButton rbCashOnDelivery;
@@ -180,6 +199,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
+            }
+        }
+
         initViews();
         setupOrderCounters();
         setupPaymentOptions();
@@ -190,6 +216,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     }
 
     private void initViews() {
+        cardGateAlertBanner = findViewById(R.id.cardGateAlertBanner);
+        tvGateAlertMessage = findViewById(R.id.tvGateAlertMessage);
+        ivDismissGateAlert = findViewById(R.id.ivDismissGateAlert);
+
         tvBuyerGreeting = findViewById(R.id.tvBuyerGreeting);
         tvBuyerLocationHeader = findViewById(R.id.tvBuyerLocationHeader);
         ivBuyerProfile = findViewById(R.id.ivBuyerProfile);
@@ -223,6 +253,8 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
         tvDepositNotice = findViewById(R.id.tvDepositNotice);
         cbExpressDelivery = findViewById(R.id.cbExpressDelivery);
+        tvExpressAlertNotice = findViewById(R.id.tvExpressAlertNotice);
+        etExactLocationDirections = findViewById(R.id.etExactLocationDirections);
 
         rgPaymentMethod = findViewById(R.id.rgPaymentMethod);
         rbCashOnDelivery = findViewById(R.id.rbCashOnDelivery);
@@ -285,6 +317,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         cbExpressDelivery.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (tvExpressAlertNotice != null) {
+                    tvExpressAlertNotice.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+                }
                 recalculateOrderTotal();
             }
         });
@@ -326,6 +361,24 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     }
 
     private void setupListeners() {
+        if (ivDismissGateAlert != null) {
+            ivDismissGateAlert.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (cardGateAlertBanner != null) {
+                        cardGateAlertBanner.setVisibility(View.GONE);
+                    }
+                    gateAlertDismissedByUser = true;
+                    if (latestGateAlertSnapshot != null) {
+                        Long ts = latestGateAlertSnapshot.child("timestamp").getValue(Long.class);
+                        if (ts != null) {
+                            lastDismissedAlertTimestamp = ts;
+                        }
+                    }
+                }
+            });
+        }
+
         View.OnClickListener profileOpener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -449,6 +502,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
             }
             updateDeliveryGpsDisplay();
         }
+
+        if (etExactLocationDirections != null && !TextUtils.isEmpty(user.getLocationNotes())
+                && TextUtils.isEmpty(etExactLocationDirections.getText())) {
+            etExactLocationDirections.setText(user.getLocationNotes());
+        }
+
+        evaluateGateAlert();
     }
 
     private void refreshBuyerOrdersUi() {
@@ -609,6 +669,140 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         }
                     });
         } catch (Exception ignored) {}
+
+        // 4. Real-time Campus Gate Arrival Broadcast Alert (Realtime Database)
+        if (rtdbGateAlertListener != null) {
+            FirebaseManager.getInstance().getDatabase().getReference("campus_alerts")
+                    .child("current_gate_alert").removeEventListener(rtdbGateAlertListener);
+        }
+        rtdbGateAlertListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                latestGateAlertSnapshot = snapshot;
+                evaluateGateAlert();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        FirebaseManager.getInstance().getDatabase().getReference("campus_alerts")
+                .child("current_gate_alert").addValueEventListener(rtdbGateAlertListener);
+    }
+
+    private void evaluateGateAlert() {
+        if (cardGateAlertBanner == null) return;
+        if (latestGateAlertSnapshot == null || !latestGateAlertSnapshot.exists()) {
+            cardGateAlertBanner.setVisibility(View.GONE);
+            return;
+        }
+
+        Boolean active = latestGateAlertSnapshot.child("active").getValue(Boolean.class);
+        String alertLocation = latestGateAlertSnapshot.child("locationName").getValue(String.class);
+        String alertMessage = latestGateAlertSnapshot.child("message").getValue(String.class);
+        Long timestamp = latestGateAlertSnapshot.child("timestamp").getValue(Long.class);
+
+        if (!Boolean.TRUE.equals(active)) {
+            cardGateAlertBanner.setVisibility(View.GONE);
+            return;
+        }
+
+        String buyerHall = (currentUser != null && currentUser.getLocationName() != null)
+                ? currentUser.getLocationName().trim()
+                : "";
+
+        boolean isMatch = false;
+        if (alertLocation != null) {
+            String trimmedLoc = alertLocation.trim();
+            if ("All KUET Locations".equalsIgnoreCase(trimmedLoc)) {
+                isMatch = true;
+            } else if (!buyerHall.isEmpty()) {
+                if (trimmedLoc.equalsIgnoreCase(buyerHall)
+                        || trimmedLoc.toLowerCase().contains(buyerHall.toLowerCase())
+                        || buyerHall.toLowerCase().contains(trimmedLoc.toLowerCase())) {
+                    isMatch = true;
+                }
+            }
+        }
+
+        if (isMatch) {
+            // If new alert timestamp arrived, reset dismissal state
+            if (timestamp != null && timestamp > lastDismissedAlertTimestamp) {
+                gateAlertDismissedByUser = false;
+            }
+
+            if (!gateAlertDismissedByUser) {
+                cardGateAlertBanner.setVisibility(View.VISIBLE);
+            }
+            if (tvGateAlertMessage != null && alertMessage != null) {
+                tvGateAlertMessage.setText(alertMessage);
+            }
+
+            // Trigger local notification via NotificationCompat so student knows water van is outside
+            if (timestamp != null && timestamp != lastNotifiedGateAlertTimestamp) {
+                lastNotifiedGateAlertTimestamp = timestamp;
+                triggerGateArrivalNotification(alertLocation, alertMessage != null ? alertMessage : "Water Supply Van is now at your Hall Gate! Keep your empty jars ready.");
+            }
+        } else {
+            cardGateAlertBanner.setVisibility(View.GONE);
+        }
+    }
+
+    private void triggerGateArrivalNotification(String locationName, String message) {
+        NotificationManager notificationManager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager == null) return;
+
+        String channelId = "campus_gate_alerts";
+        String channelName = "Campus Gate Arrival Alerts";
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    channelName,
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            channel.setDescription("High-priority alerts when water delivery van reaches your hall gate");
+            channel.enableVibration(true);
+            channel.setVibrationPattern(new long[]{0, 500, 200, 500});
+            notificationManager.createNotificationChannel(channel);
+        }
+
+        Intent openIntent = new Intent(this, BuyerDashboardActivity.class);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this,
+                (int) System.currentTimeMillis(),
+                openIntent,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                        ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                        : PendingIntent.FLAG_UPDATE_CURRENT
+        );
+
+        String title = "🚚 Water Van at " + (locationName != null ? locationName : "Gate") + "!";
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.drawable.ic_delivery_van)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent);
+
+        int notificationId = 1001;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    return;
+                }
+            }
+            notificationManager.notify(notificationId, builder.build());
+        } catch (Exception e) {
+            Log.e("BuyerDashboard", "Notification error: " + e.getMessage());
+        }
     }
 
     private void updateDeliveryGpsDisplay() {
@@ -637,6 +831,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         final Spinner spinner = dialog.findViewById(R.id.spinnerSelectGpsLocation);
         final TextInputEditText etRoom = dialog.findViewById(R.id.etSelectGpsRoom);
         final TextInputEditText etFloor = dialog.findViewById(R.id.etSelectGpsFloor);
+        final TextInputEditText etSelectGpsDirections = dialog.findViewById(R.id.etSelectGpsDirections);
         final TextView tvCoords = dialog.findViewById(R.id.tvActiveGpsCoords);
         MaterialButton btnDetect = dialog.findViewById(R.id.btnDetectDeviceGps);
         MaterialButton btnCancel = dialog.findViewById(R.id.btnCancelSelectGps);
@@ -654,6 +849,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
         etRoom.setText(!TextUtils.isEmpty(orderRoom) ? orderRoom : (currentUser != null ? currentUser.getRoomOrFlatNo() : ""));
         etFloor.setText(String.valueOf(orderFloor > 0 ? orderFloor : (currentUser != null ? currentUser.getFloorNumber() : 1)));
+        if (etSelectGpsDirections != null && etExactLocationDirections != null && !TextUtils.isEmpty(etExactLocationDirections.getText())) {
+            etSelectGpsDirections.setText(etExactLocationDirections.getText());
+        }
         tvCoords.setText(String.format(Locale.getDefault(), "%.6f° N, %.6f° E", tempCoords[0], tempCoords[1]));
 
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -700,6 +898,8 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 String selLoc = (String) spinner.getSelectedItem();
                 String selRoom = etRoom.getText() != null ? etRoom.getText().toString().trim() : "";
                 String floorStr = etFloor.getText() != null ? etFloor.getText().toString().trim() : "1";
+                String directions = etSelectGpsDirections != null && etSelectGpsDirections.getText() != null
+                        ? etSelectGpsDirections.getText().toString().trim() : "";
 
                 int f = 1;
                 try { f = Integer.parseInt(floorStr); } catch (Exception ignored) {}
@@ -709,6 +909,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 orderFloor = f;
                 orderLatitude = tempCoords[0];
                 orderLongitude = tempCoords[1];
+
+                if (etExactLocationDirections != null && !TextUtils.isEmpty(directions)) {
+                    etExactLocationDirections.setText(directions);
+                }
 
                 updateDeliveryGpsDisplay();
                 Toast.makeText(BuyerDashboardActivity.this, "Delivery GPS set to " + selLoc, Toast.LENGTH_SHORT).show();
@@ -722,6 +926,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                     update.put("floorNumber", orderFloor);
                     update.put("latitude", orderLatitude);
                     update.put("longitude", orderLongitude);
+                    if (!TextUtils.isEmpty(directions)) {
+                        update.put("locationNotes", directions);
+                    }
                     FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid()).update(update);
                 }
             }
@@ -795,6 +1002,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 qrToken
         );
 
+        final String exactLocationNotes = etExactLocationDirections != null && etExactLocationDirections.getText() != null
+                ? etExactLocationDirections.getText().toString().trim() : "";
+        newOrder.setLocationNotes(exactLocationNotes);
+
         // Add immediately to local buyer map for instantaneous responsiveness
         buyerOrdersMap.put(orderId, newOrder);
         refreshBuyerOrdersUi();
@@ -815,7 +1026,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, finalLat);
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, finalLng);
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, finalLocName);
+                        alertIntent.putExtra("locationNotes", exactLocationNotes);
+                        alertIntent.putExtra("isUrgent", cbExpressDelivery.isChecked());
                         sendBroadcast(alertIntent);
+
+                        if (currentUser != null && !TextUtils.isEmpty(exactLocationNotes)) {
+                            FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid()).update("locationNotes", exactLocationNotes);
+                        }
 
                         // Week 10 Component: ContentProvider record insertion
                         try {
@@ -1068,6 +1285,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         if (rtdbUserListener != null) FirebaseManager.getInstance().getRtdbUsersRef().removeEventListener(rtdbUserListener);
         if (rtdbBuyerOrdersListener != null) FirebaseManager.getInstance().getRtdbOrdersRef().removeEventListener(rtdbBuyerOrdersListener);
         if (rtdbQualityListener != null) FirebaseManager.getInstance().getRtdbWaterQualityRef().removeEventListener(rtdbQualityListener);
+        if (rtdbGateAlertListener != null) {
+            FirebaseManager.getInstance().getDatabase().getReference("campus_alerts")
+                    .child("current_gate_alert").removeEventListener(rtdbGateAlertListener);
+        }
     }
 
     // --- Week 8 Syllabus: Implicit Intent Demonstration ---

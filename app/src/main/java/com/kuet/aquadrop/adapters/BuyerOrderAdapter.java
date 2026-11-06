@@ -2,6 +2,7 @@ package com.kuet.aquadrop.adapters;
 
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -67,6 +68,8 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
         private final TextView tvItemOrderStatus;
         private final TextView tvItemJarDetails;
         private final TextView tvItemEta;
+        private final TextView tvItemUrgentBadge;
+        private final TextView tvItemLocationNotes;
         private final TextView tvItemTotalPrice;
         private final MaterialButton btnTrackOrder;
         private final MaterialButton btnShowQr;
@@ -79,6 +82,8 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
             tvItemOrderStatus = itemView.findViewById(R.id.tvItemOrderStatus);
             tvItemJarDetails = itemView.findViewById(R.id.tvItemJarDetails);
             tvItemEta = itemView.findViewById(R.id.tvItemEta);
+            tvItemUrgentBadge = itemView.findViewById(R.id.tvItemUrgentBadge);
+            tvItemLocationNotes = itemView.findViewById(R.id.tvItemLocationNotes);
             tvItemTotalPrice = itemView.findViewById(R.id.tvItemTotalPrice);
             btnTrackOrder = itemView.findViewById(R.id.btnTrackOrder);
             btnShowQr = itemView.findViewById(R.id.btnShowQr);
@@ -92,6 +97,18 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
             String jarInfo = String.format(Locale.getDefault(), "%d x 20L Refill (%d Returning)",
                     order.getJarRefillCount(), order.getEmptyJarsToReturn());
             tvItemJarDetails.setText(jarInfo);
+
+            if (tvItemUrgentBadge != null) {
+                tvItemUrgentBadge.setVisibility(order.isUrgent() ? View.VISIBLE : View.GONE);
+            }
+            if (tvItemLocationNotes != null) {
+                if (!TextUtils.isEmpty(order.getLocationNotes())) {
+                    tvItemLocationNotes.setVisibility(View.VISIBLE);
+                    tvItemLocationNotes.setText("📍 Exact Directions: " + order.getLocationNotes());
+                } else {
+                    tvItemLocationNotes.setVisibility(View.GONE);
+                }
+            }
 
             tvItemTotalPrice.setText(String.format(Locale.getDefault(), "%.0f BDT", order.getTotalPrice()));
 

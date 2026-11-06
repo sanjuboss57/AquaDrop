@@ -5,10 +5,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Google Maps Fragment Container -->
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/mapFragment"
-        android:name="com.google.android.gms.maps.SupportMapFragment"
+    <!-- OpenStreetMap (osmdroid) View (100% Free Open Campus & Street Tiles) -->
+    <org.osmdroid.views.MapView
+        android:id="@+id/osmMapView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 

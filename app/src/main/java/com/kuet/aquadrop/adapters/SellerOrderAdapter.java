@@ -44,6 +44,10 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
         notifyDataSetChanged();
     }
 
+    public List<WaterOrder> getOrders() {
+        return orders;
+    }
+
     @NonNull
     @Override
     public SellerOrderViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -64,6 +68,7 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
 
     class SellerOrderViewHolder extends RecyclerView.ViewHolder {
 
+        private final LinearLayout llEmergencyAlertHeader;
         private final TextView tvSellerOrderId;
         private final TextView tvUrgentBadge;
         private final TextView tvSellerOrderStatus;
@@ -71,6 +76,8 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
         private final TextView tvBuyerPhone;
         private final MaterialButton btnCallBuyer;
         private final TextView tvDeliveryAddress;
+        private final LinearLayout llLocationNotes;
+        private final TextView tvLocationNotes;
         private final TextView tvBuyerGpsCoordinates;
         private final MaterialButton btnViewGpsOnMap;
         private final LinearLayout llSellerGpsRow;
@@ -89,6 +96,7 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
 
         public SellerOrderViewHolder(@NonNull View itemView) {
             super(itemView);
+            llEmergencyAlertHeader = itemView.findViewById(R.id.llEmergencyAlertHeader);
             tvSellerOrderId = itemView.findViewById(R.id.tvSellerOrderId);
             tvUrgentBadge = itemView.findViewById(R.id.tvUrgentBadge);
             tvSellerOrderStatus = itemView.findViewById(R.id.tvSellerOrderStatus);
@@ -96,6 +104,8 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
             tvBuyerPhone = itemView.findViewById(R.id.tvBuyerPhone);
             btnCallBuyer = itemView.findViewById(R.id.btnCallBuyer);
             tvDeliveryAddress = itemView.findViewById(R.id.tvDeliveryAddress);
+            llLocationNotes = itemView.findViewById(R.id.llLocationNotes);
+            tvLocationNotes = itemView.findViewById(R.id.tvLocationNotes);
             tvBuyerGpsCoordinates = itemView.findViewById(R.id.tvBuyerGpsCoordinates);
             btnViewGpsOnMap = itemView.findViewById(R.id.btnViewGpsOnMap);
             llSellerGpsRow = itemView.findViewById(R.id.llSellerGpsRow);
@@ -116,8 +126,25 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
         public void bind(final WaterOrder order) {
             tvSellerOrderId.setText(order.getOrderId());
 
-            // Express / Urgent Badge
-            tvUrgentBadge.setVisibility(order.isUrgent() ? View.VISIBLE : View.GONE);
+            // High Priority Emergency Alert Header & Card Border Styling
+            if (order.isUrgent()) {
+                if (llEmergencyAlertHeader != null) llEmergencyAlertHeader.setVisibility(View.VISIBLE);
+                tvUrgentBadge.setVisibility(View.VISIBLE);
+                tvUrgentBadge.setText("🚨 EMERGENCY");
+                tvUrgentBadge.setTextColor(Color.parseColor("#C62828"));
+                tvUrgentBadge.setBackgroundColor(Color.parseColor("#FFCDD2"));
+                if (itemView instanceof com.google.android.material.card.MaterialCardView) {
+                    ((com.google.android.material.card.MaterialCardView) itemView).setStrokeColor(Color.parseColor("#D32F2F"));
+                    ((com.google.android.material.card.MaterialCardView) itemView).setStrokeWidth(4);
+                }
+            } else {
+                if (llEmergencyAlertHeader != null) llEmergencyAlertHeader.setVisibility(View.GONE);
+                tvUrgentBadge.setVisibility(View.GONE);
+                if (itemView instanceof com.google.android.material.card.MaterialCardView) {
+                    ((com.google.android.material.card.MaterialCardView) itemView).setStrokeColor(Color.parseColor("#E0E0E0"));
+                    ((com.google.android.material.card.MaterialCardView) itemView).setStrokeWidth(2);
+                }
+            }
 
             // Buyer Contact
             tvBuyerName.setText(String.format("Buyer: %s", order.getBuyerName()));
@@ -129,6 +156,16 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
                     order.getLocationName(),
                     order.getRoomOrFlatNo(),
                     order.getFloorNumber()));
+
+            // Optional Exact Location Notes / Directions
+            if (llLocationNotes != null && tvLocationNotes != null) {
+                if (!TextUtils.isEmpty(order.getLocationNotes())) {
+                    llLocationNotes.setVisibility(View.VISIBLE);
+                    tvLocationNotes.setText("📍 Exact Directions: " + order.getLocationNotes());
+                } else {
+                    llLocationNotes.setVisibility(View.GONE);
+                }
+            }
 
             // Buyer Live GPS Coordinates
             if (order.getBuyerLat() != 0.0 && order.getBuyerLng() != 0.0) {

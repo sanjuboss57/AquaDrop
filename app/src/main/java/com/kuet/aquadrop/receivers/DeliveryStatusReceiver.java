@@ -107,12 +107,19 @@ public class DeliveryStatusReceiver extends BroadcastReceiver {
                         : PendingIntent.FLAG_UPDATE_CURRENT
         );
 
+        boolean isUrgent = srcIntent.getBooleanExtra("isUrgent", false);
+        String title = isUrgent ? ("🚨 EMERGENCY ORDER • " + orderId) : ("AquaDrop • " + orderId);
+        String locationNotes = srcIntent.getStringExtra("locationNotes");
+        if (locationNotes != null && !locationNotes.isEmpty()) {
+            message += "\nDirections: " + locationNotes;
+        }
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_water_drop)
-                .setContentTitle("AquaDrop • " + orderId)
+                .setSmallIcon(isUrgent ? R.drawable.ic_warning : R.drawable.ic_water_drop)
+                .setContentTitle(title)
                 .setContentText(message)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(isUrgent ? NotificationCompat.PRIORITY_MAX : NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent);
 

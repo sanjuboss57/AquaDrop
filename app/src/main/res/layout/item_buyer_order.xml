@@ -96,6 +96,33 @@
                     android:textColor="@color/accent"
                     android:textSize="12sp"
                     android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvItemUrgentBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:background="#FFCDD2"
+                    android:paddingStart="6dp"
+                    android:paddingTop="2dp"
+                    android:paddingEnd="6dp"
+                    android:paddingBottom="2dp"
+                    android:text="🚨 EMERGENCY EXPRESS"
+                    android:textColor="#C62828"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvItemLocationNotes"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="📍 Directions: Near Staircase"
+                    android:textColor="#E65100"
+                    android:textSize="11sp"
+                    android:textStyle="italic"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <TextView

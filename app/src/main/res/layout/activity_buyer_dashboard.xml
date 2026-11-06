@@ -87,6 +87,75 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- 0. HIGH PRIORITY GATE ARRIVAL LIVE BROADCAST BANNER -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardGateAlertBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="#FFF8E1"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
+                app:strokeColor="#FFA000"
+                app:strokeWidth="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="14dp">
+
+                    <ImageView
+                        android:id="@+id/ivGateAlertVanIcon"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:background="#FFECB3"
+                        android:contentDescription="Van Gate Arrival"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_delivery_van"
+                        app:tint="#E65100" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🚚 CAMPUS GATE ARRIVAL"
+                            android:textColor="#E65100"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvGateAlertMessage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Water Supply Van is now at your Hall Gate! Keep your empty jars ready."
+                            android:textColor="#5D4037"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:id="@+id/ivDismissGateAlert"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Dismiss Alert"
+                        android:padding="6dp"
+                        android:src="@drawable/ic_close"
+                        app:tint="#8D6E63" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- 1. Daily Water Quality Badge Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardWaterQuality"
@@ -519,6 +588,33 @@
                             android:textSize="11sp" />
                     </LinearLayout>
 
+                    <!-- Optional Exact Location / Directions / Landmark Explanation -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilExactLocationDirections"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Explain Exact Location / Directions (Optional)"
+                        app:boxCornerRadiusBottomEnd="10dp"
+                        app:boxCornerRadiusBottomStart="10dp"
+                        app:boxCornerRadiusTopEnd="10dp"
+                        app:boxCornerRadiusTopStart="10dp"
+                        app:boxStrokeColor="@color/primary"
+                        app:helperText="e.g., Near West Staircase, Room 304, Opposite Hall Canteen"
+                        app:helperTextTextColor="@color/text_secondary"
+                        app:startIconDrawable="@drawable/ic_location_pin"
+                        app:startIconTint="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etExactLocationDirections"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapSentences"
+                            android:maxLines="2"
+                            android:textSize="13sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
                     <!-- Counter 1: Refill Jars (45 BDT) -->
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -670,15 +766,29 @@
                         android:textSize="12sp"
                         android:visibility="visible" />
 
-                    <!-- Emergency Express Delivery CheckBox -->
+                    <!-- Emergency Express Delivery CheckBox & Priority Alert Notice -->
                     <CheckBox
                         android:id="@+id/cbExpressDelivery"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Emergency Express Delivery (+15 BDT)"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp" />
+                        android:text="🚨 Emergency Express Delivery (+15 BDT)"
+                        android:textColor="@color/urgent_red"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvExpressAlertNotice"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="#FFEBEE"
+                        android:padding="8dp"
+                        android:text="🚨 EMERGENCY ORDER ALERT: Depot seller will receive an instant priority siren, high-contrast red alert banner, and top-of-queue priority dispatch!"
+                        android:textColor="#C62828"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
 
                     <View
                         android:layout_width="match_parent"

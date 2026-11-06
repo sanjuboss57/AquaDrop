@@ -2,7 +2,9 @@ package com.kuet.aquadrop.activities;
 
 import android.app.Dialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Color;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -14,8 +16,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -31,6 +36,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -55,6 +61,7 @@ import com.kuet.aquadrop.models.WaterQuality;
 import com.kuet.aquadrop.receivers.DeliveryStatusReceiver;
 import com.kuet.aquadrop.services.LocationBroadcastService;
 import com.kuet.aquadrop.utils.FirebaseManager;
+import com.kuet.aquadrop.utils.KuetLocations;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -82,11 +89,23 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     private ImageView ivRefreshOrders;
     private ImageView ivSellerLogout;
 
+    // Emergency Notice Views
+    private MaterialCardView cardEmergencyNotice;
+    private TextView tvEmergencyAlertSubtitle;
+    private int lastKnownUrgentCount = -1;
+
     // Dispatch Queue Views
     private TextView tvOrderQueueCount;
     private TextView tvNoSellerOrders;
     private RecyclerView rvSellerOrders;
     private SellerOrderAdapter sellerOrderAdapter;
+
+    // Feature 1 & 2: Hall-Wise Batch Filter Views & Gate Arrival Broadcast
+    private Spinner spinnerHallFilter;
+    private TextView tvHallBatchSummary;
+    private MaterialButton btnBroadcastArrival;
+    private String selectedHallFilter = "All KUET Locations";
+    private List<WaterOrder> allOrdersList = new ArrayList<>();
 
     // State & Listeners
     private ListenerRegistration ordersListenerRegistration;
@@ -137,9 +156,39 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         ivRefreshOrders = findViewById(R.id.ivRefreshOrders);
         ivSellerLogout = findViewById(R.id.ivSellerLogout);
 
+        cardEmergencyNotice = findViewById(R.id.cardEmergencyNotice);
+        tvEmergencyAlertSubtitle = findViewById(R.id.tvEmergencyAlertSubtitle);
+
+        spinnerHallFilter = findViewById(R.id.spinnerHallFilter);
+        tvHallBatchSummary = findViewById(R.id.tvHallBatchSummary);
+        btnBroadcastArrival = findViewById(R.id.btnBroadcastArrival);
+        setupHallFilterSpinner();
+
         tvOrderQueueCount = findViewById(R.id.tvOrderQueueCount);
         tvNoSellerOrders = findViewById(R.id.tvNoSellerOrders);
         rvSellerOrders = findViewById(R.id.rvSellerOrders);
+    }
+
+    private void setupHallFilterSpinner() {
+        if (spinnerHallFilter == null) return;
+        List<String> hallOptions = new ArrayList<>();
+        hallOptions.add("All KUET Locations");
+        hallOptions.addAll(KuetLocations.getLocationNames());
+
+        ArrayAdapter<String> hallAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, hallOptions);
+        hallAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerHallFilter.setAdapter(hallAdapter);
+
+        spinnerHallFilter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedHallFilter = (String) parent.getItemAtPosition(position);
+                recalculateAndDisplayOrders();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
     }
 
     private void setupRecyclerView() {
@@ -149,6 +198,17 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     }
 
     private void setupListeners() {
+        if (cardEmergencyNotice != null) {
+            cardEmergencyNotice.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (rvSellerOrders != null) {
+                        rvSellerOrders.smoothScrollToPosition(0);
+                    }
+                }
+            });
+        }
+
         if (ivScanDeliveryQrHeader != null) {
             ivScanDeliveryQrHeader.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -202,6 +262,123 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                 showUpdateWaterQualityDialog();
             }
         });
+
+        if (btnBroadcastArrival != null) {
+            btnBroadcastArrival.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showBroadcastArrivalDialog();
+                }
+            });
+        }
+    }
+
+    private void showBroadcastArrivalDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("📢 Broadcast Gate Arrival");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int paddingPx = (int) (18 * getResources().getDisplayMetrics().density);
+        layout.setPadding(paddingPx, paddingPx / 2, paddingPx, paddingPx / 2);
+
+        TextView infoText = new TextView(this);
+        infoText.setText("Select the KUET Hall or Area where your water van has arrived. This will instantly send a live alert and push notification to buyers in that zone:");
+        infoText.setTextColor(Color.parseColor("#374151"));
+        infoText.setTextSize(13);
+        layout.addView(infoText);
+
+        final Spinner locSpinner = new Spinner(this);
+        List<String> locations = new ArrayList<>();
+        locations.add("All KUET Locations");
+        locations.addAll(KuetLocations.getLocationNames());
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, locations);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        locSpinner.setAdapter(adapter);
+
+        // Preselect current hall filter if available
+        int selectedIndex = locations.indexOf(selectedHallFilter);
+        if (selectedIndex >= 0) {
+            locSpinner.setSelection(selectedIndex);
+        }
+
+        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        spinnerParams.topMargin = (int) (12 * getResources().getDisplayMetrics().density);
+        locSpinner.setLayoutParams(spinnerParams);
+        layout.addView(locSpinner);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Send Arrival Alert", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                final String chosenLocation = (locSpinner.getSelectedItem() != null)
+                        ? (String) locSpinner.getSelectedItem()
+                        : "All KUET Locations";
+
+                String alertMessage;
+                if ("All KUET Locations".equalsIgnoreCase(chosenLocation)) {
+                    alertMessage = "Water Supply Van is now making rounds at campus gates! Keep your empty jars ready.";
+                } else {
+                    alertMessage = "Water Supply Van is now at " + chosenLocation + " Gate! Keep your empty jars ready.";
+                }
+
+                Map<String, Object> alertData = new HashMap<>();
+                alertData.put("locationName", chosenLocation);
+                alertData.put("message", alertMessage);
+                alertData.put("timestamp", System.currentTimeMillis());
+                alertData.put("active", true);
+
+                FirebaseManager.getInstance().getDatabase()
+                        .getReference("campus_alerts")
+                        .child("current_gate_alert")
+                        .setValue(alertData)
+                        .addOnSuccessListener(new OnSuccessListener<Void>() {
+                            @Override
+                            public void onSuccess(Void aVoid) {
+                                Toast.makeText(SellerDashboardActivity.this, "Gate Arrival Alert Broadcasted for " + chosenLocation + "!", Toast.LENGTH_SHORT).show();
+                            }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Toast.makeText(SellerDashboardActivity.this, "Failed to broadcast: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        });
+            }
+        });
+
+        builder.setNeutralButton("Clear Alert", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                FirebaseManager.getInstance().getDatabase()
+                        .getReference("campus_alerts")
+                        .child("current_gate_alert")
+                        .child("active")
+                        .setValue(false)
+                        .addOnSuccessListener(new OnSuccessListener<Void>() {
+                            @Override
+                            public void onSuccess(Void aVoid) {
+                                Toast.makeText(SellerDashboardActivity.this, "Campus Gate Alert Cleared", Toast.LENGTH_SHORT).show();
+                            }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Toast.makeText(SellerDashboardActivity.this, "Failed to clear: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        });
+            }
+        });
+
+        builder.setNegativeButton("Cancel", null);
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 
     @Override
@@ -335,10 +512,13 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     }
 
     private void recalculateAndDisplayOrders() {
-        List<WaterOrder> orderList = new ArrayList<>(liveOrdersMap.values());
+        this.allOrdersList = new ArrayList<>(liveOrdersMap.values());
+        List<WaterOrder> orderList = this.allOrdersList;
         int pendingCount = 0;
         int activeDeliveriesCount = 0;
         int emptyCollectedCount = 0;
+        int urgentPendingCount = 0;
+        WaterOrder latestUrgentOrder = null;
 
         int todayDeliveredCount = 0;
         double todayEarnings = 0.0;
@@ -350,6 +530,14 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         for (WaterOrder order : orderList) {
             if (order != null) {
                 String status = order.getStatus();
+                boolean isTerminal = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status) || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
+                if (!isTerminal && order.isUrgent()) {
+                    urgentPendingCount++;
+                    if (latestUrgentOrder == null) {
+                        latestUrgentOrder = order;
+                    }
+                }
+
                 if (WaterOrder.STATUS_PENDING.equalsIgnoreCase(status)) {
                     pendingCount++;
                 } else if (WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
@@ -373,13 +561,30 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             }
         }
 
-        this.cachedAllOrders = new ArrayList<>(orderList);
+        this.cachedAllOrders = new ArrayList<>(allOrdersList);
 
-        // Sound chime / vibration when a new pending order arrives online
-        if (lastKnownPendingCount != -1 && pendingCount > lastKnownPendingCount) {
+        // Emergency Alert Notice Banner on Seller Dashboard
+        if (cardEmergencyNotice != null) {
+            if (urgentPendingCount > 0) {
+                cardEmergencyNotice.setVisibility(View.VISIBLE);
+                if (tvEmergencyAlertSubtitle != null) {
+                    tvEmergencyAlertSubtitle.setText(String.format(Locale.getDefault(),
+                            "🚨 %d order(s) marked for EMERGENCY EXPRESS delivery! Immediate priority dispatch requested.",
+                            urgentPendingCount));
+                }
+            } else {
+                cardEmergencyNotice.setVisibility(View.GONE);
+            }
+        }
+
+        // Sound chime / vibration / dialog when a new order arrives online
+        if (lastKnownUrgentCount != -1 && urgentPendingCount > lastKnownUrgentCount && latestUrgentOrder != null) {
+            notifyEmergencyOrderArrived(latestUrgentOrder);
+        } else if (lastKnownPendingCount != -1 && pendingCount > lastKnownPendingCount) {
             notifyNewOrderArrived();
         }
         lastKnownPendingCount = pendingCount;
+        lastKnownUrgentCount = urgentPendingCount;
 
         // Update Dashboard Metrics Cards
         if (tvSummaryTodayDelivered != null) {
@@ -399,10 +604,56 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                     "Lifetime: %d deliveries completed • %.0f BDT total revenue • %d empty jars returned",
                     lifetimeDeliveredCount, lifetimeRevenue, emptyCollectedCount));
         }
-        tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Orders (%d Pending)", orderList.size(), pendingCount));
 
-        // Sorting Strategy: Active before Delivered/Cancelled, Urgent (isUrgent == true) at the top, newest first
-        Collections.sort(orderList, new Comparator<WaterOrder>() {
+        // Feature 1: Filter allOrdersList by selectedHallFilter & compute zone trip load
+        final boolean isAllHalls = "All KUET Locations".equalsIgnoreCase(selectedHallFilter)
+                || TextUtils.isEmpty(selectedHallFilter);
+
+        final List<WaterOrder> filteredList = new ArrayList<>();
+        int zonePendingCount = 0;
+        int zoneLoadOnVanJars = 0;
+        int zoneEmptyToCollectJars = 0;
+
+        for (WaterOrder order : allOrdersList) {
+            if (order == null) continue;
+
+            boolean matchesZone = isAllHalls || (order.getLocationName() != null
+                    && order.getLocationName().equalsIgnoreCase(selectedHallFilter));
+
+            if (matchesZone) {
+                filteredList.add(order);
+
+                String st = order.getStatus();
+                boolean isActive = WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)
+                        || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(st)
+                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(st);
+
+                if (isActive) {
+                    if (WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)) {
+                        zonePendingCount++;
+                    }
+                    zoneLoadOnVanJars += (order.getJarRefillCount() + order.getNewJarWithDepositCount());
+                    zoneEmptyToCollectJars += order.getEmptyJarsToReturn();
+                }
+            }
+        }
+
+        // Update Feature 1 Trip Load Summary TextView
+        if (tvHallBatchSummary != null) {
+            String summaryText = String.format(Locale.getDefault(),
+                    "Pending in this zone: %d Orders | Load on Van: %d Jars | Empty to Collect: %d Jars",
+                    zonePendingCount, zoneLoadOnVanJars, zoneEmptyToCollectJars);
+            tvHallBatchSummary.setText(summaryText);
+        }
+
+        if (isAllHalls) {
+            tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Orders (%d Pending)", allOrdersList.size(), pendingCount));
+        } else {
+            tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d in Zone (%d Total)", filteredList.size(), allOrdersList.size()));
+        }
+
+        // Sorting Strategy: Active before terminal, Urgent (isUrgent == true) first, then floorNumber ascending
+        Collections.sort(filteredList, new Comparator<WaterOrder>() {
             @Override
             public int compare(WaterOrder o1, WaterOrder o2) {
                 if (o1 == null && o2 == null) return 0;
@@ -425,25 +676,82 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                     return o1Cancelled ? 1 : -1;
                 }
 
+                // Urgent orders first
                 if (o1.isUrgent() != o2.isUrgent()) {
                     return o1.isUrgent() ? -1 : 1;
                 }
 
+                // Sort by floorNumber ascending (1st floor, 2nd floor, 3rd floor...)
+                int floorComp = Integer.compare(o1.getFloorNumber(), o2.getFloorNumber());
+                if (floorComp != 0) {
+                    return floorComp;
+                }
+
+                // Newest timestamp
                 return Long.compare(o2.getTimestamp(), o1.getTimestamp());
             }
         });
 
-        sellerOrderAdapter.setOrders(orderList);
+        sellerOrderAdapter.setOrders(filteredList);
         sellerOrderAdapter.notifyDataSetChanged();
 
-        if (orderList.isEmpty()) {
-            tvNoSellerOrders.setText("No orders in dispatch queue.\n(Waiting for buyer orders • Tap 🔄 in header to refresh)");
+        if (filteredList.isEmpty()) {
+            String emptyMsg = isAllHalls
+                    ? "No orders in dispatch queue.\n(Waiting for buyer orders • Tap 🔄 in header to refresh)"
+                    : "No active orders found for " + selectedHallFilter + ".\n(Select \"All KUET Locations\" or tap 🔄 to refresh)";
+            tvNoSellerOrders.setText(emptyMsg);
             tvNoSellerOrders.setVisibility(View.VISIBLE);
             rvSellerOrders.setVisibility(View.GONE);
         } else {
             tvNoSellerOrders.setVisibility(View.GONE);
             rvSellerOrders.setVisibility(View.VISIBLE);
         }
+    }
+
+    private void notifyEmergencyOrderArrived(final WaterOrder order) {
+        if (order == null) return;
+
+        try {
+            Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), soundUri);
+            if (r != null) r.play();
+        } catch (Exception ignored) {}
+
+        try {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null) {
+                long[] pattern = {0, 450, 200, 450, 200, 450};
+                v.vibrate(pattern, -1);
+            }
+        } catch (Exception ignored) {}
+
+        Toast.makeText(this, "🚨🚨 EMERGENCY ORDER ALERT! Order #" + order.getOrderId() + " requires EXPRESS delivery!", Toast.LENGTH_LONG).show();
+
+        try {
+            if (!isFinishing() && !isDestroyed()) {
+                StringBuilder msg = new StringBuilder();
+                msg.append("Order #").append(order.getOrderId()).append(" has been marked as EMERGENCY EXPRESS DELIVERY!\n\n");
+                msg.append("📍 Location: ").append(order.getLocationName()).append(" • Room ").append(order.getRoomOrFlatNo())
+                        .append(" (Floor ").append(order.getFloorNumber()).append(")\n");
+                if (!TextUtils.isEmpty(order.getLocationNotes())) {
+                    msg.append("📝 Exact Directions: ").append(order.getLocationNotes()).append("\n");
+                }
+                msg.append("👤 Buyer: ").append(order.getBuyerName()).append(" (").append(order.getBuyerPhone()).append(")\n");
+                msg.append("💧 Bottles: ").append(order.getJarRefillCount()).append(" Refill Jar(s)\n");
+                msg.append("💵 Total: ").append(String.format(Locale.getDefault(), "%.0f BDT", order.getTotalPrice()));
+
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("🚨 EMERGENCY ORDER ALERT!")
+                        .setMessage(msg.toString())
+                        .setPositiveButton("View Order Now", (dialog, which) -> {
+                            if (rvSellerOrders != null) {
+                                rvSellerOrders.smoothScrollToPosition(0);
+                            }
+                        })
+                        .setNegativeButton("Acknowledge", null)
+                        .show();
+            }
+        } catch (Exception ignored) {}
     }
 
     private void notifyNewOrderArrived() {
@@ -557,26 +865,101 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     }
 
     @Override
-    public void onScanQr(WaterOrder order) {
+    public void onScanQr(final WaterOrder order) {
+        if (order == null) return;
         this.pendingScanOrder = order;
 
-        ScanOptions options = new ScanOptions();
-        options.setPrompt("Scan Handover QR for Order #" + order.getOrderId());
-        options.setBeepEnabled(true);
-        options.setOrientationLocked(true);
-        options.setBarcodeImageEnabled(false);
-        qrScanLauncher.launch(options);
+        new AlertDialog.Builder(this)
+                .setTitle("Complete Delivery: Order #" + order.getOrderId())
+                .setMessage("Choose delivery confirmation method:\n\n• Scan QR with Camera: Scan physical QR code from buyer's phone.\n• Enter/Confirm Token (Demo Mode): Complete delivery on this device without needing a second phone camera.")
+                .setPositiveButton("Scan QR with Camera", (dialog, which) -> {
+                    ScanOptions options = new ScanOptions();
+                    options.setPrompt("Scan Handover QR for Order #" + order.getOrderId());
+                    options.setBeepEnabled(true);
+                    options.setOrientationLocked(true);
+                    options.setBarcodeImageEnabled(false);
+                    qrScanLauncher.launch(options);
+                })
+                .setNeutralButton("Enter/Confirm Token (Demo)", (dialog, which) -> {
+                    showDemoTokenConfirmationDialog(order);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void startScanAnyOrderQr() {
-        this.pendingScanOrder = null;
+        new AlertDialog.Builder(this)
+                .setTitle("Scan Handover QR to Confirm Delivery")
+                .setMessage("Choose delivery confirmation method:\n\n• Scan QR with Camera: Scan physical QR code from buyer's phone.\n• Enter Order ID / Token (Demo Mode): Complete delivery on this device.")
+                .setPositiveButton("Scan with Camera", (dialog, which) -> {
+                    this.pendingScanOrder = null;
+                    ScanOptions options = new ScanOptions();
+                    options.setPrompt("Scan Buyer Handover QR to Confirm Delivery");
+                    options.setBeepEnabled(true);
+                    options.setOrientationLocked(true);
+                    options.setBarcodeImageEnabled(false);
+                    qrScanLauncher.launch(options);
+                })
+                .setNeutralButton("Enter Order ID / Token", (dialog, which) -> {
+                    showDemoTokenConfirmationDialog(null);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
 
-        ScanOptions options = new ScanOptions();
-        options.setPrompt("Scan Buyer Handover QR to Confirm Delivery");
-        options.setBeepEnabled(true);
-        options.setOrientationLocked(true);
-        options.setBarcodeImageEnabled(false);
-        qrScanLauncher.launch(options);
+    private void showDemoTokenConfirmationDialog(final WaterOrder order) {
+        final android.widget.EditText inputToken = new android.widget.EditText(this);
+        inputToken.setSingleLine(true);
+        String prefill = (order != null)
+                ? (!TextUtils.isEmpty(order.getQrToken()) ? order.getQrToken() : order.getOrderId())
+                : "";
+        inputToken.setText(prefill);
+        inputToken.setHint("e.g. AQ-VERIFY-... or AQ-8912");
+        if (!prefill.isEmpty()) {
+            inputToken.setSelection(prefill.length());
+        }
+
+        android.widget.FrameLayout container = new android.widget.FrameLayout(this);
+        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.leftMargin = (int) (24 * getResources().getDisplayMetrics().density);
+        params.rightMargin = (int) (24 * getResources().getDisplayMetrics().density);
+        params.topMargin = (int) (8 * getResources().getDisplayMetrics().density);
+        params.bottomMargin = (int) (8 * getResources().getDisplayMetrics().density);
+        inputToken.setLayoutParams(params);
+        container.addView(inputToken);
+
+        String title = (order != null)
+                ? ("Confirm Delivery (Demo Mode) • " + order.getOrderId())
+                : "Enter Order Token (Demo Mode)";
+
+        String message = (order != null)
+                ? ("Buyer: " + order.getBuyerName() + " (" + order.getLocationName() + ")\n"
+                + "Bottles: " + order.getJarRefillCount() + " jar(s) • Cash to collect: "
+                + String.format(Locale.getDefault(), "%.0f BDT", order.getTotalPrice())
+                + "\n\nToken prefilled below for single-device testing:")
+                : "Enter Order ID or Buyer Handover Token to confirm delivery & cash collection:";
+
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setView(container)
+                .setPositiveButton("Confirm Delivery & Cash", (dialog, which) -> {
+                    String entered = inputToken.getText() != null ? inputToken.getText().toString().trim() : "";
+                    if (TextUtils.isEmpty(entered)) {
+                        entered = prefill;
+                    }
+                    if (TextUtils.isEmpty(entered)) {
+                        Toast.makeText(SellerDashboardActivity.this, "Please enter an order ID or token", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    this.pendingScanOrder = order;
+                    handleQrScanVerification(entered);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     @Override

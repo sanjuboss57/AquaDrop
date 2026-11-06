@@ -1,13 +1,13 @@
 package com.kuet.aquadrop.activities;
 
 import android.animation.ValueAnimator;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 import android.widget.ImageView;
@@ -19,18 +19,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
 
-import com.google.android.gms.maps.CameraUpdateFactory;
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polyline;
-import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.material.button.MaterialButton;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -41,13 +29,31 @@ import com.kuet.aquadrop.models.LiveTelemetry;
 import com.kuet.aquadrop.utils.EtaCalculator;
 import com.kuet.aquadrop.utils.FirebaseManager;
 
+import org.osmdroid.api.IMapController;
+import org.osmdroid.config.Configuration;
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.CustomZoomButtonsController;
+import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.Marker;
+import org.osmdroid.views.overlay.Polyline;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
-public class LiveTrackingActivity extends AppCompatActivity implements OnMapReadyCallback {
+/**
+ * Live Delivery GPS Telemetry Tracker powered by OpenStreetMap (osmdroid).
+ * Renders 100% free interactive street and building tiles centered on KUET Campus
+ * without requiring any paid Google Maps API key or billing account.
+ */
+public class LiveTrackingActivity extends AppCompatActivity {
 
     // KUET Campus Geographic Anchors
-    private static final LatLng KUET_CENTER = new LatLng(22.8998, 89.5015);
-    private static final LatLng FULBARIGATE_DEPOT = new LatLng(22.8970, 89.5060); // Water Depot coordinates
+    private static final double KUET_CENTER_LAT = 22.8998;
+    private static final double KUET_CENTER_LNG = 89.5015;
+    private static final double FULBARIGATE_DEPOT_LAT = 22.8970; // Water Depot coordinates
+    private static final double FULBARIGATE_DEPOT_LNG = 89.5060;
 
     // Views
     private ImageView ivBackTracking;
@@ -60,8 +66,8 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
     private TextView tvTrackingEtaCountdown;
     private MaterialButton btnSimulateVanMovement;
 
-    // Google Maps State
-    private GoogleMap googleMap;
+    // OpenStreetMap (osmdroid) Map State
+    private MapView osmMapView;
     private Marker driverMarker;
     private Marker destinationMarker;
     private Polyline routePolyline;
@@ -73,7 +79,7 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
     private double buyerLat = 22.8992;
     private double buyerLng = 89.5012;
     private int floorNumber = 3;
-    private LatLng buyerLatLng;
+    private GeoPoint buyerGeoPoint;
 
     // Firebase Telemetry Realtime Database Listener
     private DatabaseReference telemetryRef;
@@ -89,11 +95,16 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Configure osmdroid tile caching & user agent before layout inflation
+        Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this));
+        Configuration.getInstance().setUserAgentValue(getPackageName());
+
         setContentView(R.layout.activity_live_tracking);
 
         extractIntentExtras();
         initViews();
-        setupMapFragment();
+        setupOsmMapView();
         setupListeners();
         subscribeToFirebaseTelemetry();
     }
@@ -110,7 +121,7 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
             buyerLng = getIntent().getDoubleExtra("buyerLng", 89.5012);
             floorNumber = getIntent().getIntExtra("floorNumber", 3);
         }
-        buyerLatLng = new LatLng(buyerLat, buyerLng);
+        buyerGeoPoint = new GeoPoint(buyerLat, buyerLng);
     }
 
     private void initViews() {
@@ -123,18 +134,70 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
         tvTrackingDistanceRemaining = findViewById(R.id.tvTrackingDistanceRemaining);
         tvTrackingEtaCountdown = findViewById(R.id.tvTrackingEtaCountdown);
         btnSimulateVanMovement = findViewById(R.id.btnSimulateVanMovement);
+        osmMapView = findViewById(R.id.osmMapView);
 
         tvTrackingHeaderSubtitle.setText(String.format("Order #%s • Realtime Telemetry", orderId));
         tvTrackingDestination.setText(String.format(Locale.getDefault(),
                 "Destination: %s • Floor %d", locationName, floorNumber));
     }
 
-    private void setupMapFragment() {
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(R.id.mapFragment);
-        if (mapFragment != null) {
-            mapFragment.getMapAsync(this);
+    private void setupOsmMapView() {
+        if (osmMapView == null) return;
+
+        // Use high-contrast Mapnik OpenStreetMap raster tiles
+        osmMapView.setTileSource(TileSourceFactory.MAPNIK);
+        osmMapView.setMultiTouchControls(true);
+        osmMapView.getZoomController().setVisibility(CustomZoomButtonsController.Visibility.SHOW_AND_FADEOUT);
+
+        // Center directly on KUET Campus with zoom 16.5 as specified
+        IMapController controller = osmMapView.getController();
+        controller.setZoom(16.5);
+        GeoPoint kuetCenter = new GeoPoint(KUET_CENTER_LAT, KUET_CENTER_LNG);
+        controller.setCenter(kuetCenter);
+
+        // 1. Add Destination Marker (Buyer's Hall Pin)
+        destinationMarker = new Marker(osmMapView);
+        destinationMarker.setPosition(buyerGeoPoint);
+        destinationMarker.setTitle("Delivery Point: " + locationName);
+        destinationMarker.setSnippet(String.format(Locale.getDefault(), "Floor %d", floorNumber));
+        destinationMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+
+        Drawable destDrawable = ContextCompat.getDrawable(this, R.drawable.ic_location_pin);
+        if (destDrawable != null) {
+            Drawable tinted = destDrawable.mutate();
+            DrawableCompat.setTint(tinted, ContextCompat.getColor(this, R.color.urgent_red));
+            destinationMarker.setIcon(tinted);
         }
+        osmMapView.getOverlays().add(destinationMarker);
+
+        // 2. Add Water Van Marker at Fulbarigate Depot
+        GeoPoint depotPoint = new GeoPoint(FULBARIGATE_DEPOT_LAT, FULBARIGATE_DEPOT_LNG);
+        driverMarker = new Marker(osmMapView);
+        driverMarker.setPosition(depotPoint);
+        driverMarker.setTitle("AquaDrop Water Van");
+        driverMarker.setSnippet("Depot Center");
+        driverMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER);
+
+        Drawable vanDrawable = ContextCompat.getDrawable(this, R.drawable.ic_delivery_van);
+        if (vanDrawable != null) {
+            Drawable tintedVan = vanDrawable.mutate();
+            DrawableCompat.setTint(tintedVan, Color.parseColor("#0288D1"));
+            driverMarker.setIcon(tintedVan);
+        }
+        osmMapView.getOverlays().add(driverMarker);
+
+        // 3. Add Route Polyline between Depot and Destination Pin
+        routePolyline = new Polyline(osmMapView);
+        routePolyline.getOutlinePaint().setColor(Color.parseColor("#0288D1"));
+        routePolyline.getOutlinePaint().setStrokeWidth(12f);
+
+        List<GeoPoint> initialRoute = new ArrayList<>();
+        initialRoute.add(depotPoint);
+        initialRoute.add(buyerGeoPoint);
+        routePolyline.setPoints(initialRoute);
+        osmMapView.getOverlays().add(routePolyline);
+
+        osmMapView.invalidate();
     }
 
     private void setupListeners() {
@@ -153,31 +216,6 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
         });
     }
 
-    @Override
-    public void onMapReady(@NonNull GoogleMap map) {
-        this.googleMap = map;
-        googleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-        googleMap.getUiSettings().setZoomControlsEnabled(true);
-        googleMap.getUiSettings().setCompassEnabled(true);
-
-        // Add Buyer Hall Destination Pin (Red Marker)
-        destinationMarker = googleMap.addMarker(new MarkerOptions()
-                .position(buyerLatLng)
-                .title("Delivery Point: " + locationName)
-                .snippet(String.format(Locale.getDefault(), "Floor %d", floorNumber))
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
-
-        // Initial camera centering on KUET campus
-        googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(KUET_CENTER, 16.0f));
-
-        // Add initial Water Van marker at Depot
-        driverMarker = googleMap.addMarker(new MarkerOptions()
-                .position(FULBARIGATE_DEPOT)
-                .title("AquaDrop Water Van")
-                .snippet("Depot Center")
-                .icon(getBitmapDescriptorFromVector(R.drawable.ic_delivery_van, Color.parseColor("#0288D1"))));
-    }
-
     private void subscribeToFirebaseTelemetry() {
         telemetryRef = FirebaseManager.getInstance().getTelemetryRef(orderId);
 
@@ -185,8 +223,8 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (!snapshot.exists()) {
-                    // If no telemetry published yet, initialize with depot position
-                    double dist = EtaCalculator.distanceMeters(FULBARIGATE_DEPOT.latitude, FULBARIGATE_DEPOT.longitude, buyerLat, buyerLng);
+                    // Initialize with depot default position
+                    double dist = EtaCalculator.distanceMeters(FULBARIGATE_DEPOT_LAT, FULBARIGATE_DEPOT_LNG, buyerLat, buyerLng);
                     int eta = EtaCalculator.calculateEtaMinutes(dist / 1000.0, floorNumber, 0);
                     updateTelemetryUI(dist, eta);
                     return;
@@ -208,40 +246,27 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
     }
 
     private void onLiveTelemetryReceived(LiveTelemetry telemetry) {
-        final LatLng driverPos = new LatLng(telemetry.getDriverLat(), telemetry.getDriverLng());
+        final GeoPoint driverPos = new GeoPoint(telemetry.getDriverLat(), telemetry.getDriverLng());
 
-        // 1. Smoothly Move Water Van Marker
-        if (googleMap != null) {
-            if (driverMarker == null) {
-                driverMarker = googleMap.addMarker(new MarkerOptions()
-                        .position(driverPos)
-                        .title("AquaDrop Water Van")
-                        .icon(getBitmapDescriptorFromVector(R.drawable.ic_delivery_van, Color.parseColor("#0288D1"))));
-            } else {
+        // 1. Move Water Van Marker
+        if (osmMapView != null) {
+            if (driverMarker != null) {
                 animateMarkerTo(driverMarker, driverPos);
             }
 
-            // 2. Draw / Update Polyline between Van and Buyer's Hall Pin
+            // 2. Update Route Polyline between Van and Buyer's Hall Pin
             if (routePolyline != null) {
-                routePolyline.remove();
+                List<GeoPoint> updatedRoute = new ArrayList<>();
+                updatedRoute.add(driverPos);
+                updatedRoute.add(buyerGeoPoint);
+                routePolyline.setPoints(updatedRoute);
+                osmMapView.invalidate();
             }
-            routePolyline = googleMap.addPolyline(new PolylineOptions()
-                    .add(driverPos, buyerLatLng)
-                    .width(10f)
-                    .color(Color.parseColor("#0288D1"))
-                    .geodesic(true));
 
-            // Camera bounds framing both van and hall on first sync
+            // Center view on van position on initial sync
             if (!isMapInitialCentered) {
-                try {
-                    LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                    builder.include(driverPos);
-                    builder.include(buyerLatLng);
-                    googleMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 200));
-                    isMapInitialCentered = true;
-                } catch (Exception e) {
-                    googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(driverPos, 16.0f));
-                }
+                osmMapView.getController().animateTo(driverPos);
+                isMapInitialCentered = true;
             }
         }
 
@@ -283,9 +308,9 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
                 if (simulationStep <= TOTAL_SIMULATION_STEPS) {
                     double fraction = (double) simulationStep / TOTAL_SIMULATION_STEPS;
 
-                    // Linear interpolation from Depot (22.8970, 89.5060) to Buyer's Hall coordinates
-                    double currentLat = FULBARIGATE_DEPOT.latitude + fraction * (buyerLat - FULBARIGATE_DEPOT.latitude);
-                    double currentLng = FULBARIGATE_DEPOT.longitude + fraction * (buyerLng - FULBARIGATE_DEPOT.longitude);
+                    // Linear interpolation from Depot to Buyer coordinates
+                    double currentLat = FULBARIGATE_DEPOT_LAT + fraction * (buyerLat - FULBARIGATE_DEPOT_LAT);
+                    double currentLng = FULBARIGATE_DEPOT_LNG + fraction * (buyerLng - FULBARIGATE_DEPOT_LNG);
 
                     double distMeters = EtaCalculator.distanceMeters(currentLat, currentLng, buyerLat, buyerLng);
                     double distKm = distMeters / 1000.0;
@@ -323,11 +348,11 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
         btnSimulateVanMovement.setTextColor(ContextCompat.getColor(this, R.color.primary));
     }
 
-    // --- Helper Utilities: Custom Markers & Marker Animation ---
+    // --- Helper Utilities: Marker Animation ---
 
-    private void animateMarkerTo(final Marker marker, final LatLng targetPosition) {
+    private void animateMarkerTo(final Marker marker, final GeoPoint targetPosition) {
         if (marker == null) return;
-        final LatLng startPosition = marker.getPosition();
+        final GeoPoint startPosition = marker.getPosition();
 
         ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
         animator.setDuration(1200);
@@ -336,59 +361,55 @@ public class LiveTrackingActivity extends AppCompatActivity implements OnMapRead
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 float v = animation.getAnimatedFraction();
-                double lat = v * targetPosition.latitude + (1 - v) * startPosition.latitude;
-                double lng = v * targetPosition.longitude + (1 - v) * startPosition.longitude;
-                marker.setPosition(new LatLng(lat, lng));
+                double lat = v * targetPosition.getLatitude() + (1 - v) * startPosition.getLatitude();
+                double lng = v * targetPosition.getLongitude() + (1 - v) * startPosition.getLongitude();
+                marker.setPosition(new GeoPoint(lat, lng));
+                if (osmMapView != null) osmMapView.invalidate();
             }
         });
         animator.start();
     }
 
-    private BitmapDescriptor getBitmapDescriptorFromVector(int vectorResId, int tintColor) {
-        Drawable vectorDrawable = ContextCompat.getDrawable(this, vectorResId);
-        if (vectorDrawable == null) {
-            return BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE);
-        }
-        vectorDrawable.setBounds(0, 0, vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight());
-        DrawableCompat.setTint(vectorDrawable, tintColor);
-        Bitmap bitmap = Bitmap.createBitmap(vectorDrawable.getIntrinsicWidth(),
-                vectorDrawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        vectorDrawable.draw(canvas);
-        return BitmapDescriptorFactory.fromBitmap(bitmap);
-    }
-
-    // --- Week 8 Syllabus: Activity Lifecycle Callbacks & Observation ---
+    // --- Activity Lifecycle Callbacks (Week 8 Syllabus) & osmdroid management ---
 
     @Override
     protected void onStart() {
         super.onStart();
-        android.util.Log.d("AquaDropLifecycle", "LiveTrackingActivity: onStart() called");
+        Log.d("AquaDropLifecycle", "LiveTrackingActivity: onStart() called");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        android.util.Log.d("AquaDropLifecycle", "LiveTrackingActivity: onResume() called");
+        Log.d("AquaDropLifecycle", "LiveTrackingActivity: onResume() called");
+        if (osmMapView != null) {
+            osmMapView.onResume();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        android.util.Log.d("AquaDropLifecycle", "LiveTrackingActivity: onPause() called");
+        Log.d("AquaDropLifecycle", "LiveTrackingActivity: onPause() called");
+        if (osmMapView != null) {
+            osmMapView.onPause();
+        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        android.util.Log.d("AquaDropLifecycle", "LiveTrackingActivity: onStop() called");
+        Log.d("AquaDropLifecycle", "LiveTrackingActivity: onStop() called");
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        android.util.Log.d("AquaDropLifecycle", "LiveTrackingActivity: onDestroy() called");
+        Log.d("AquaDropLifecycle", "LiveTrackingActivity: onDestroy() called");
         stopVanMovementSimulation();
+        if (osmMapView != null) {
+            osmMapView.onDetach();
+        }
         if (telemetryRef != null && telemetryValueEventListener != null) {
             telemetryRef.removeEventListener(telemetryValueEventListener);
         }

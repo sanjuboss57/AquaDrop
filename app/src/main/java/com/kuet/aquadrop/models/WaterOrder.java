@@ -49,6 +49,7 @@ public class WaterOrder implements Serializable {
     private String sellerId;
     private long deliveredTimestamp;
     private String deliveredDate;
+    private String locationNotes; // Optional exact location directions or landmark explanation
 
     // Required empty constructor for Firestore serialization
     public WaterOrder() {
@@ -134,6 +135,7 @@ public class WaterOrder implements Serializable {
             order.setSellerId(safeString(doc, "sellerId", ""));
             order.setDeliveredDate(safeString(doc, "deliveredDate", ""));
             order.setDeliveredTimestamp(safeLong(doc, "deliveredTimestamp", 0L));
+            order.setLocationNotes(safeString(doc, "locationNotes", ""));
 
             return order;
         } catch (Throwable t) {
@@ -198,6 +200,7 @@ public class WaterOrder implements Serializable {
             order.setSellerId(safeRtdbString(snapshot, "sellerId", ""));
             order.setDeliveredDate(safeRtdbString(snapshot, "deliveredDate", ""));
             order.setDeliveredTimestamp(safeRtdbLong(snapshot, "deliveredTimestamp", 0L));
+            order.setLocationNotes(safeRtdbString(snapshot, "locationNotes", ""));
 
             return order;
         } catch (Throwable t) {
@@ -478,5 +481,13 @@ public class WaterOrder implements Serializable {
 
     public void setDeliveredDate(String deliveredDate) {
         this.deliveredDate = deliveredDate;
+    }
+
+    public String getLocationNotes() {
+        return locationNotes;
+    }
+
+    public void setLocationNotes(String locationNotes) {
+        this.locationNotes = locationNotes;
     }
 }

@@ -51,6 +51,9 @@ dependencies {
     implementation 'com.google.android.gms:play-services-maps:18.2.0'
     implementation 'com.google.android.gms:play-services-location:21.2.0'
 
+    // OpenStreetMap (osmdroid) for 100% Free Campus & Street Vector/Raster Tiles
+    implementation 'org.osmdroid:osmdroid-android:6.1.18'
+
     // ZXing Barcode & QR Code Scanner / Generator
     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     implementation 'com.google.zxing:core:3.5.2'
