@@ -38,6 +38,7 @@ import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.MetadataChanges;
@@ -221,12 +222,14 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         }
 
         try {
-            ordersListenerRegistration = FirebaseManager.getInstance().getOrdersRef()
-                    .addSnapshotListener(MetadataChanges.INCLUDE, new EventListener<QuerySnapshot>() {
+            // Direct query to db.collection("orders") without whereEqualTo(buyerId/sellerId) and without compound orderBy
+            ordersListenerRegistration = FirebaseFirestore.getInstance().collection("orders")
+                    .addSnapshotListener(new EventListener<QuerySnapshot>() {
                         @Override
                         public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
                             if (error != null) {
-                                Log.w("SellerDashboard", "Firestore sync info (Realtime Database active): " + error.getMessage());
+                                Log.e("SellerDashboard", "Firestore Orders SnapshotListener error: " + error.getMessage(), error);
+                                Toast.makeText(SellerDashboardActivity.this, "Firestore Error: " + error.getMessage(), Toast.LENGTH_LONG).show();
                                 return;
                             }
 
@@ -242,7 +245,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         }
                     });
         } catch (Exception e) {
-            Log.w("SellerDashboard", "Firestore listener init: " + e.getMessage());
+            Log.e("SellerDashboard", "Firestore listener init: " + e.getMessage(), e);
+            Toast.makeText(SellerDashboardActivity.this, "Listener error: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
 
         // 2. Realtime Database Live Listener (Guarantees 100% online real-time sync)
@@ -304,9 +308,9 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             }
         });
 
-        // Also fetch from Firestore
+        // Also fetch from Firestore directly without compound queries
         try {
-            FirebaseManager.getInstance().getOrdersRef().get(Source.SERVER)
+            FirebaseFirestore.getInstance().collection("orders").get()
                     .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
                         @Override
                         public void onSuccess(QuerySnapshot snapshots) {
@@ -430,6 +434,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         });
 
         sellerOrderAdapter.setOrders(orderList);
+        sellerOrderAdapter.notifyDataSetChanged();
 
         if (orderList.isEmpty()) {
             tvNoSellerOrders.setText("No orders in dispatch queue.\n(Waiting for buyer orders • Tap 🔄 in header to refresh)");

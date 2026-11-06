@@ -46,6 +46,7 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.MetadataChanges;
@@ -458,11 +459,15 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 if (o1 == null && o2 == null) return 0;
                 if (o1 == null) return 1;
                 if (o2 == null) return -1;
+                if (o1.isUrgent() != o2.isUrgent()) {
+                    return o1.isUrgent() ? -1 : 1;
+                }
                 return Long.compare(o2.getTimestamp(), o1.getTimestamp());
             }
         });
 
         orderAdapter.setOrders(orders);
+        orderAdapter.notifyDataSetChanged();
 
         if (orders.isEmpty()) {
             tvNoOrdersPlaceholder.setVisibility(View.VISIBLE);

@@ -5,6 +5,7 @@ import android.util.Log;
 
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.IgnoreExtraProperties;
 import com.google.firebase.firestore.PropertyName;
 
 import java.io.Serializable;
@@ -12,6 +13,7 @@ import java.io.Serializable;
 /**
  * Model representing a drinking water jar order in AquaDrop.
  */
+@IgnoreExtraProperties
 public class WaterOrder implements Serializable {
 
     // Status Constants
@@ -423,6 +425,11 @@ public class WaterOrder implements Serializable {
     @PropertyName("urgent")
     public void setUrgent(boolean urgent) {
         this.isUrgent = urgent;
+    }
+
+    @PropertyName("isUrgent")
+    public void setIsUrgent(boolean isUrgent) {
+        this.isUrgent = isUrgent;
     }
 
     public String getStatus() {
