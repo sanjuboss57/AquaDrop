@@ -367,6 +367,20 @@
                         app:iconSize="16dp"
                         app:iconTint="@color/primary"
                         app:strokeColor="@color/primary" />
+
+                    <!-- Dedicated Action: Delivered Orders Archive -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnDeliveredOrdersArchive"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:backgroundTint="#2E7D32"
+                        android:text="📦 Delivered Orders Archive"
+                        android:textAllCaps="false"
+                        android:textColor="@color/white"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="8dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -437,40 +451,14 @@
                             android:textStyle="bold" />
                     </LinearLayout>
 
-                    <LinearLayout
+                    <Spinner
+                        android:id="@+id/spinnerHallFilter"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="46dp"
                         android:layout_marginTop="8dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <Spinner
-                            android:id="@+id/spinnerHallFilter"
-                            android:layout_width="0dp"
-                            android:layout_height="46dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_rounded_card"
-                            android:paddingStart="8dp"
-                            android:paddingEnd="8dp" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnBroadcastArrival"
-                            android:layout_width="wrap_content"
-                            android:layout_height="46dp"
-                            android:layout_marginStart="8dp"
-                            android:backgroundTint="#FF8F00"
-                            android:paddingStart="10dp"
-                            android:paddingEnd="10dp"
-                            android:text="Broadcast Gate Arrival"
-                            android:textAllCaps="false"
-                            android:textColor="@color/white"
-                            android:textSize="11sp"
-                            android:textStyle="bold"
-                            app:cornerRadius="8dp"
-                            app:icon="@drawable/ic_delivery_van"
-                            app:iconSize="16dp"
-                            app:iconTint="@color/white" />
-                    </LinearLayout>
+                        android:background="@drawable/bg_rounded_card"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp" />
 
                     <TextView
                         android:id="@+id/tvHallBatchSummary"

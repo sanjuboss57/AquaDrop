@@ -88,15 +88,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private static final int SECURITY_DEPOSIT_PER_JAR = 200;
     private static final int EXPRESS_DELIVERY_SURCHARGE = 15;
 
-    // Gate Arrival Live Alert Banner Views & State
+    // Targeted Gate Arrival Live Alert Banner Views & State
     private MaterialCardView cardGateAlertBanner;
     private TextView tvGateAlertMessage;
     private ImageView ivDismissGateAlert;
     private ValueEventListener rtdbGateAlertListener;
-    private DataSnapshot latestGateAlertSnapshot;
+    private String activeGateAlertOrderId;
     private long lastNotifiedGateAlertTimestamp = 0;
-    private boolean gateAlertDismissedByUser = false;
-    private long lastDismissedAlertTimestamp = 0;
 
     // Header Views
     private TextView tvBuyerGreeting;
@@ -368,12 +366,14 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                     if (cardGateAlertBanner != null) {
                         cardGateAlertBanner.setVisibility(View.GONE);
                     }
-                    gateAlertDismissedByUser = true;
-                    if (latestGateAlertSnapshot != null) {
-                        Long ts = latestGateAlertSnapshot.child("timestamp").getValue(Long.class);
-                        if (ts != null) {
-                            lastDismissedAlertTimestamp = ts;
-                        }
+                    FirebaseUser user = FirebaseManager.getInstance().getCurrentUser();
+                    if (user != null && !TextUtils.isEmpty(activeGateAlertOrderId)) {
+                        FirebaseManager.getInstance().getDatabase()
+                                .getReference("buyer_alerts")
+                                .child(user.getUid())
+                                .child(activeGateAlertOrderId)
+                                .child("active")
+                                .setValue(false);
                     }
                 }
             });
@@ -507,8 +507,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 && TextUtils.isEmpty(etExactLocationDirections.getText())) {
             etExactLocationDirections.setText(user.getLocationNotes());
         }
-
-        evaluateGateAlert();
     }
 
     private void refreshBuyerOrdersUi() {
@@ -670,81 +668,57 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                     });
         } catch (Exception ignored) {}
 
-        // 4. Real-time Campus Gate Arrival Broadcast Alert (Realtime Database)
+        // 4. Targeted Buyer-Specific Gate Arrival Alert (Realtime Database: buyer_alerts/{uid})
         if (rtdbGateAlertListener != null) {
-            FirebaseManager.getInstance().getDatabase().getReference("campus_alerts")
-                    .child("current_gate_alert").removeEventListener(rtdbGateAlertListener);
+            FirebaseManager.getInstance().getDatabase().getReference("buyer_alerts")
+                    .child(uid).removeEventListener(rtdbGateAlertListener);
         }
         rtdbGateAlertListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                latestGateAlertSnapshot = snapshot;
-                evaluateGateAlert();
+                activeGateAlertOrderId = null;
+                boolean foundActive = false;
+                if (snapshot.exists() && snapshot.hasChildren()) {
+                    for (DataSnapshot orderAlertSnapshot : snapshot.getChildren()) {
+                        Boolean active = orderAlertSnapshot.child("active").getValue(Boolean.class);
+                        if (Boolean.TRUE.equals(active)) {
+                            String orderId = orderAlertSnapshot.child("orderId").getValue(String.class);
+                            String message = orderAlertSnapshot.child("message").getValue(String.class);
+                            String locationName = orderAlertSnapshot.child("locationName").getValue(String.class);
+                            Long timestamp = orderAlertSnapshot.child("timestamp").getValue(Long.class);
+
+                            activeGateAlertOrderId = orderId != null ? orderId : orderAlertSnapshot.getKey();
+                            foundActive = true;
+
+                            if (cardGateAlertBanner != null) {
+                                cardGateAlertBanner.setVisibility(View.VISIBLE);
+                            }
+                            if (tvGateAlertMessage != null && message != null) {
+                                tvGateAlertMessage.setText(message);
+                            }
+
+                            // Trigger local notification via NotificationCompat if not already notified for this timestamp
+                            if (timestamp != null && timestamp != lastNotifiedGateAlertTimestamp) {
+                                lastNotifiedGateAlertTimestamp = timestamp;
+                                triggerGateArrivalNotification(locationName, message);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if (!foundActive) {
+                    if (cardGateAlertBanner != null) {
+                        cardGateAlertBanner.setVisibility(View.GONE);
+                    }
+                }
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {}
         };
-        FirebaseManager.getInstance().getDatabase().getReference("campus_alerts")
-                .child("current_gate_alert").addValueEventListener(rtdbGateAlertListener);
-    }
-
-    private void evaluateGateAlert() {
-        if (cardGateAlertBanner == null) return;
-        if (latestGateAlertSnapshot == null || !latestGateAlertSnapshot.exists()) {
-            cardGateAlertBanner.setVisibility(View.GONE);
-            return;
-        }
-
-        Boolean active = latestGateAlertSnapshot.child("active").getValue(Boolean.class);
-        String alertLocation = latestGateAlertSnapshot.child("locationName").getValue(String.class);
-        String alertMessage = latestGateAlertSnapshot.child("message").getValue(String.class);
-        Long timestamp = latestGateAlertSnapshot.child("timestamp").getValue(Long.class);
-
-        if (!Boolean.TRUE.equals(active)) {
-            cardGateAlertBanner.setVisibility(View.GONE);
-            return;
-        }
-
-        String buyerHall = (currentUser != null && currentUser.getLocationName() != null)
-                ? currentUser.getLocationName().trim()
-                : "";
-
-        boolean isMatch = false;
-        if (alertLocation != null) {
-            String trimmedLoc = alertLocation.trim();
-            if ("All KUET Locations".equalsIgnoreCase(trimmedLoc)) {
-                isMatch = true;
-            } else if (!buyerHall.isEmpty()) {
-                if (trimmedLoc.equalsIgnoreCase(buyerHall)
-                        || trimmedLoc.toLowerCase().contains(buyerHall.toLowerCase())
-                        || buyerHall.toLowerCase().contains(trimmedLoc.toLowerCase())) {
-                    isMatch = true;
-                }
-            }
-        }
-
-        if (isMatch) {
-            // If new alert timestamp arrived, reset dismissal state
-            if (timestamp != null && timestamp > lastDismissedAlertTimestamp) {
-                gateAlertDismissedByUser = false;
-            }
-
-            if (!gateAlertDismissedByUser) {
-                cardGateAlertBanner.setVisibility(View.VISIBLE);
-            }
-            if (tvGateAlertMessage != null && alertMessage != null) {
-                tvGateAlertMessage.setText(alertMessage);
-            }
-
-            // Trigger local notification via NotificationCompat so student knows water van is outside
-            if (timestamp != null && timestamp != lastNotifiedGateAlertTimestamp) {
-                lastNotifiedGateAlertTimestamp = timestamp;
-                triggerGateArrivalNotification(alertLocation, alertMessage != null ? alertMessage : "Water Supply Van is now at your Hall Gate! Keep your empty jars ready.");
-            }
-        } else {
-            cardGateAlertBanner.setVisibility(View.GONE);
-        }
+        FirebaseManager.getInstance().getDatabase().getReference("buyer_alerts")
+                .child(uid).addValueEventListener(rtdbGateAlertListener);
     }
 
     private void triggerGateArrivalNotification(String locationName, String message) {
@@ -1286,8 +1260,11 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         if (rtdbBuyerOrdersListener != null) FirebaseManager.getInstance().getRtdbOrdersRef().removeEventListener(rtdbBuyerOrdersListener);
         if (rtdbQualityListener != null) FirebaseManager.getInstance().getRtdbWaterQualityRef().removeEventListener(rtdbQualityListener);
         if (rtdbGateAlertListener != null) {
-            FirebaseManager.getInstance().getDatabase().getReference("campus_alerts")
-                    .child("current_gate_alert").removeEventListener(rtdbGateAlertListener);
+            FirebaseUser u = FirebaseManager.getInstance().getCurrentUser();
+            if (u != null) {
+                FirebaseManager.getInstance().getDatabase().getReference("buyer_alerts")
+                        .child(u.getUid()).removeEventListener(rtdbGateAlertListener);
+            }
         }
     }
 

@@ -60,6 +60,10 @@
             android:name=".activities.SellerDashboardActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".activities.DeliveredHistoryActivity"
+            android:exported="false" />
+
         <!-- Geolocation & Tracking -->
         <activity
             android:name=".activities.LiveTrackingActivity"

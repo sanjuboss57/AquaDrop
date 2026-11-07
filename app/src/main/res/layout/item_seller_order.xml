@@ -70,6 +70,21 @@
             android:orientation="horizontal">
 
             <TextView
+                android:id="@+id/tvOrderSerialBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:background="#E0E7FF"
+                android:paddingStart="7dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="7dp"
+                android:paddingBottom="3dp"
+                android:text="Serial #1"
+                android:textColor="#3730A3"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
                 android:id="@+id/tvSellerOrderId"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -393,6 +408,24 @@
             android:textAllCaps="false"
             android:textColor="@color/white"
             android:textSize="13sp"
+            android:visibility="gone"
+            app:cornerRadius="8dp"
+            app:icon="@drawable/ic_delivery_van"
+            app:iconSize="18dp"
+            app:iconTint="@color/white" />
+
+        <!-- Order-Specific Gate Arrival Notification Button (Visible ONLY when ACCEPTED or OUT_FOR_DELIVERY) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnNotifyGateArrival"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginBottom="8dp"
+            android:backgroundTint="#FF8F00"
+            android:text="📢 Notify Gate Arrival"
+            android:textAllCaps="false"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:textStyle="bold"
             android:visibility="gone"
             app:cornerRadius="8dp"
             app:icon="@drawable/ic_delivery_van"

@@ -17,8 +17,10 @@ import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.models.WaterOrder;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.SellerOrderViewHolder> {
 
@@ -30,13 +32,22 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
         void onScanQr(WaterOrder order);
         void onEditOrder(WaterOrder order);
         void onViewGpsOnMap(WaterOrder order);
+        void onNotifyGateArrival(WaterOrder order, MaterialButton button);
     }
 
     private List<WaterOrder> orders = new ArrayList<>();
+    private final Set<String> gateAlertSentOrders = new HashSet<>();
     private final OnSellerOrderActionListener listener;
 
     public SellerOrderAdapter(OnSellerOrderActionListener listener) {
         this.listener = listener;
+    }
+
+    public void markGateAlertSent(String orderId) {
+        if (orderId != null) {
+            gateAlertSentOrders.add(orderId);
+            notifyDataSetChanged();
+        }
     }
 
     public void setOrders(List<WaterOrder> orders) {
@@ -58,7 +69,7 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
 
     @Override
     public void onBindViewHolder(@NonNull SellerOrderViewHolder holder, int position) {
-        holder.bind(orders.get(position));
+        holder.bind(orders.get(position), position);
     }
 
     @Override
@@ -69,6 +80,7 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
     class SellerOrderViewHolder extends RecyclerView.ViewHolder {
 
         private final LinearLayout llEmergencyAlertHeader;
+        private final TextView tvOrderSerialBadge;
         private final TextView tvSellerOrderId;
         private final TextView tvUrgentBadge;
         private final TextView tvSellerOrderStatus;
@@ -89,6 +101,7 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
 
         private final MaterialButton btnAcceptOrder;
         private final MaterialButton btnStartDelivery;
+        private final MaterialButton btnNotifyGateArrival;
         private final LinearLayout llOutForDeliveryActions;
         private final MaterialButton btnOpenLiveMap;
         private final MaterialButton btnScanBuyerQr;
@@ -97,6 +110,7 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
         public SellerOrderViewHolder(@NonNull View itemView) {
             super(itemView);
             llEmergencyAlertHeader = itemView.findViewById(R.id.llEmergencyAlertHeader);
+            tvOrderSerialBadge = itemView.findViewById(R.id.tvOrderSerialBadge);
             tvSellerOrderId = itemView.findViewById(R.id.tvSellerOrderId);
             tvUrgentBadge = itemView.findViewById(R.id.tvUrgentBadge);
             tvSellerOrderStatus = itemView.findViewById(R.id.tvSellerOrderStatus);
@@ -117,13 +131,17 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
 
             btnAcceptOrder = itemView.findViewById(R.id.btnAcceptOrder);
             btnStartDelivery = itemView.findViewById(R.id.btnStartDelivery);
+            btnNotifyGateArrival = itemView.findViewById(R.id.btnNotifyGateArrival);
             llOutForDeliveryActions = itemView.findViewById(R.id.llOutForDeliveryActions);
             btnOpenLiveMap = itemView.findViewById(R.id.btnOpenLiveMap);
             btnScanBuyerQr = itemView.findViewById(R.id.btnScanBuyerQr);
             tvDeliveredConfirmation = itemView.findViewById(R.id.tvDeliveredConfirmation);
         }
 
-        public void bind(final WaterOrder order) {
+        public void bind(final WaterOrder order, final int position) {
+            if (tvOrderSerialBadge != null) {
+                tvOrderSerialBadge.setText(String.format(Locale.getDefault(), "Serial #%d", position + 1));
+            }
             tvSellerOrderId.setText(order.getOrderId());
 
             // High Priority Emergency Alert Header & Card Border Styling
@@ -209,6 +227,34 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
             btnStartDelivery.setVisibility(View.GONE);
             llOutForDeliveryActions.setVisibility(View.GONE);
             tvDeliveredConfirmation.setVisibility(View.GONE);
+
+            // Order-Specific Gate Arrival Notification Button (Visible only when ACCEPTED or OUT_FOR_DELIVERY)
+            boolean canNotifyGate = WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
+                    || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status);
+            if (btnNotifyGateArrival != null) {
+                if (canNotifyGate) {
+                    btnNotifyGateArrival.setVisibility(View.VISIBLE);
+                    if (gateAlertSentOrders.contains(order.getOrderId())) {
+                        btnNotifyGateArrival.setText("Gate Alert Sent ✓");
+                        btnNotifyGateArrival.setEnabled(false);
+                        btnNotifyGateArrival.setBackgroundColor(Color.parseColor("#4CAF50"));
+                    } else {
+                        btnNotifyGateArrival.setText("📢 Notify Gate Arrival");
+                        btnNotifyGateArrival.setEnabled(true);
+                        btnNotifyGateArrival.setBackgroundColor(Color.parseColor("#FF8F00"));
+                    }
+                    btnNotifyGateArrival.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            if (listener != null) {
+                                listener.onNotifyGateArrival(order, btnNotifyGateArrival);
+                            }
+                        }
+                    });
+                } else {
+                    btnNotifyGateArrival.setVisibility(View.GONE);
+                }
+            }
 
             switch (status) {
                 case WaterOrder.STATUS_CANCELLED:

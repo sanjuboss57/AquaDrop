@@ -114,7 +114,12 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
 
             // Status Badge & ETA Styling
             String status = order.getStatus() != null ? order.getStatus() : WaterOrder.STATUS_PENDING;
-            tvItemOrderStatus.setText(status.replace('_', ' '));
+            if (WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)) {
+                boolean isBkash = WaterOrder.PAYMENT_BKASH.equalsIgnoreCase(order.getPaymentMethod());
+                tvItemOrderStatus.setText(isBkash ? "DELIVERED • BKASH PAID" : "DELIVERED • CASH PAID");
+            } else {
+                tvItemOrderStatus.setText(status.replace('_', ' '));
+            }
 
             applyStatusStyle(status, order);
 
@@ -187,7 +192,8 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
                 case WaterOrder.STATUS_DELIVERED:
                     bgColor = Color.parseColor("#E8F5E9");
                     textColor = Color.parseColor("#2E7D32");
-                    etaText = "✓ Delivered & Cash Received (" + String.format(Locale.getDefault(), "%.0f BDT", order.getTotalPrice()) + ")";
+                    boolean isBkashPayment = WaterOrder.PAYMENT_BKASH.equalsIgnoreCase(order.getPaymentMethod());
+                    etaText = "✓ Delivered & " + (isBkashPayment ? "bKash Paid" : "Cash Paid") + " (" + String.format(Locale.getDefault(), "%.0f BDT", order.getTotalPrice()) + ")";
                     break;
                 case WaterOrder.STATUS_PENDING:
                 default:

@@ -100,10 +100,10 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     private RecyclerView rvSellerOrders;
     private SellerOrderAdapter sellerOrderAdapter;
 
-    // Feature 1 & 2: Hall-Wise Batch Filter Views & Gate Arrival Broadcast
+    // Feature 1: Hall-Wise Batch Filter Views & Dedicated Archive
     private Spinner spinnerHallFilter;
     private TextView tvHallBatchSummary;
-    private MaterialButton btnBroadcastArrival;
+    private MaterialButton btnDeliveredOrdersArchive;
     private String selectedHallFilter = "All KUET Locations";
     private List<WaterOrder> allOrdersList = new ArrayList<>();
 
@@ -161,7 +161,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
 
         spinnerHallFilter = findViewById(R.id.spinnerHallFilter);
         tvHallBatchSummary = findViewById(R.id.tvHallBatchSummary);
-        btnBroadcastArrival = findViewById(R.id.btnBroadcastArrival);
+        btnDeliveredOrdersArchive = findViewById(R.id.btnDeliveredOrdersArchive);
         setupHallFilterSpinner();
 
         tvOrderQueueCount = findViewById(R.id.tvOrderQueueCount);
@@ -263,122 +263,56 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             }
         });
 
-        if (btnBroadcastArrival != null) {
-            btnBroadcastArrival.setOnClickListener(new View.OnClickListener() {
+        if (btnDeliveredOrdersArchive != null) {
+            btnDeliveredOrdersArchive.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    showBroadcastArrivalDialog();
+                    startActivity(new Intent(SellerDashboardActivity.this, DeliveredHistoryActivity.class));
                 }
             });
         }
     }
 
-    private void showBroadcastArrivalDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("📢 Broadcast Gate Arrival");
+    @Override
+    public void onNotifyGateArrival(final WaterOrder order, final MaterialButton button) {
+        if (order == null || TextUtils.isEmpty(order.getBuyerId())) return;
 
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        int paddingPx = (int) (18 * getResources().getDisplayMetrics().density);
-        layout.setPadding(paddingPx, paddingPx / 2, paddingPx, paddingPx / 2);
+        final String buyerId = order.getBuyerId();
+        final String orderId = order.getOrderId();
+        final String locationName = !TextUtils.isEmpty(order.getLocationName()) ? order.getLocationName() : "Campus";
+        final String message = "Your water delivery van has arrived at " + locationName + " gate for your order! Please keep your empty jars ready.";
 
-        TextView infoText = new TextView(this);
-        infoText.setText("Select the KUET Hall or Area where your water van has arrived. This will instantly send a live alert and push notification to buyers in that zone:");
-        infoText.setTextColor(Color.parseColor("#374151"));
-        infoText.setTextSize(13);
-        layout.addView(infoText);
+        Map<String, Object> alertPayload = new HashMap<>();
+        alertPayload.put("orderId", orderId);
+        alertPayload.put("buyerId", buyerId);
+        alertPayload.put("locationName", locationName);
+        alertPayload.put("message", message);
+        alertPayload.put("timestamp", System.currentTimeMillis());
+        alertPayload.put("active", true);
 
-        final Spinner locSpinner = new Spinner(this);
-        List<String> locations = new ArrayList<>();
-        locations.add("All KUET Locations");
-        locations.addAll(KuetLocations.getLocationNames());
-
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, locations);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        locSpinner.setAdapter(adapter);
-
-        // Preselect current hall filter if available
-        int selectedIndex = locations.indexOf(selectedHallFilter);
-        if (selectedIndex >= 0) {
-            locSpinner.setSelection(selectedIndex);
-        }
-
-        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        spinnerParams.topMargin = (int) (12 * getResources().getDisplayMetrics().density);
-        locSpinner.setLayoutParams(spinnerParams);
-        layout.addView(locSpinner);
-
-        builder.setView(layout);
-
-        builder.setPositiveButton("Send Arrival Alert", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                final String chosenLocation = (locSpinner.getSelectedItem() != null)
-                        ? (String) locSpinner.getSelectedItem()
-                        : "All KUET Locations";
-
-                String alertMessage;
-                if ("All KUET Locations".equalsIgnoreCase(chosenLocation)) {
-                    alertMessage = "Water Supply Van is now making rounds at campus gates! Keep your empty jars ready.";
-                } else {
-                    alertMessage = "Water Supply Van is now at " + chosenLocation + " Gate! Keep your empty jars ready.";
-                }
-
-                Map<String, Object> alertData = new HashMap<>();
-                alertData.put("locationName", chosenLocation);
-                alertData.put("message", alertMessage);
-                alertData.put("timestamp", System.currentTimeMillis());
-                alertData.put("active", true);
-
-                FirebaseManager.getInstance().getDatabase()
-                        .getReference("campus_alerts")
-                        .child("current_gate_alert")
-                        .setValue(alertData)
-                        .addOnSuccessListener(new OnSuccessListener<Void>() {
-                            @Override
-                            public void onSuccess(Void aVoid) {
-                                Toast.makeText(SellerDashboardActivity.this, "Gate Arrival Alert Broadcasted for " + chosenLocation + "!", Toast.LENGTH_SHORT).show();
-                            }
-                        })
-                        .addOnFailureListener(new OnFailureListener() {
-                            @Override
-                            public void onFailure(@NonNull Exception e) {
-                                Toast.makeText(SellerDashboardActivity.this, "Failed to broadcast: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                            }
-                        });
-            }
-        });
-
-        builder.setNeutralButton("Clear Alert", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                FirebaseManager.getInstance().getDatabase()
-                        .getReference("campus_alerts")
-                        .child("current_gate_alert")
-                        .child("active")
-                        .setValue(false)
-                        .addOnSuccessListener(new OnSuccessListener<Void>() {
-                            @Override
-                            public void onSuccess(Void aVoid) {
-                                Toast.makeText(SellerDashboardActivity.this, "Campus Gate Alert Cleared", Toast.LENGTH_SHORT).show();
-                            }
-                        })
-                        .addOnFailureListener(new OnFailureListener() {
-                            @Override
-                            public void onFailure(@NonNull Exception e) {
-                                Toast.makeText(SellerDashboardActivity.this, "Failed to clear: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                            }
-                        });
-            }
-        });
-
-        builder.setNegativeButton("Cancel", null);
-
-        AlertDialog dialog = builder.create();
-        dialog.show();
+        FirebaseManager.getInstance().getDatabase()
+                .getReference("buyer_alerts")
+                .child(buyerId)
+                .child(orderId)
+                .setValue(alertPayload)
+                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public void onSuccess(Void aVoid) {
+                        if (sellerOrderAdapter != null) {
+                            sellerOrderAdapter.markGateAlertSent(orderId);
+                        } else if (button != null) {
+                            button.setText("Gate Alert Sent ✓");
+                            button.setEnabled(false);
+                        }
+                        Toast.makeText(SellerDashboardActivity.this, "Gate Alert Sent to Buyer for Order #" + orderId + "!", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Toast.makeText(SellerDashboardActivity.this, "Failed to send gate alert: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     @Override
@@ -617,24 +551,26 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         for (WaterOrder order : allOrdersList) {
             if (order == null) continue;
 
+            String st = order.getStatus();
+            boolean isActive = WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)
+                    || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(st)
+                    || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(st);
+
+            // Filter main queue so it ONLY shows active orders. NEVER show DELIVERED orders in the main queue.
+            if (!isActive) {
+                continue;
+            }
+
             boolean matchesZone = isAllHalls || (order.getLocationName() != null
                     && order.getLocationName().equalsIgnoreCase(selectedHallFilter));
 
             if (matchesZone) {
                 filteredList.add(order);
-
-                String st = order.getStatus();
-                boolean isActive = WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)
-                        || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(st)
-                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(st);
-
-                if (isActive) {
-                    if (WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)) {
-                        zonePendingCount++;
-                    }
-                    zoneLoadOnVanJars += (order.getJarRefillCount() + order.getNewJarWithDepositCount());
-                    zoneEmptyToCollectJars += order.getEmptyJarsToReturn();
+                if (WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)) {
+                    zonePendingCount++;
                 }
+                zoneLoadOnVanJars += (order.getJarRefillCount() + order.getNewJarWithDepositCount());
+                zoneEmptyToCollectJars += order.getEmptyJarsToReturn();
             }
         }
 
@@ -647,48 +583,19 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         }
 
         if (isAllHalls) {
-            tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Orders (%d Pending)", allOrdersList.size(), pendingCount));
+            tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Active Orders", filteredList.size()));
         } else {
-            tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d in Zone (%d Total)", filteredList.size(), allOrdersList.size()));
+            tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Active in Zone", filteredList.size()));
         }
 
-        // Sorting Strategy: Active before terminal, Urgent (isUrgent == true) first, then floorNumber ascending
+        // Serial Chronological Sorting: timestamp ascending (oldest/first-placed order at the top: #1, #2, #3)
         Collections.sort(filteredList, new Comparator<WaterOrder>() {
             @Override
             public int compare(WaterOrder o1, WaterOrder o2) {
                 if (o1 == null && o2 == null) return 0;
                 if (o1 == null) return 1;
                 if (o2 == null) return -1;
-
-                String s1 = o1.getStatus() != null ? o1.getStatus() : "";
-                String s2 = o2.getStatus() != null ? o2.getStatus() : "";
-
-                boolean o1Terminal = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(s1) || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s1);
-                boolean o2Terminal = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(s2) || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s2);
-
-                if (o1Terminal != o2Terminal) {
-                    return o1Terminal ? 1 : -1;
-                }
-
-                boolean o1Cancelled = WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s1);
-                boolean o2Cancelled = WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(s2);
-                if (o1Cancelled != o2Cancelled) {
-                    return o1Cancelled ? 1 : -1;
-                }
-
-                // Urgent orders first
-                if (o1.isUrgent() != o2.isUrgent()) {
-                    return o1.isUrgent() ? -1 : 1;
-                }
-
-                // Sort by floorNumber ascending (1st floor, 2nd floor, 3rd floor...)
-                int floorComp = Integer.compare(o1.getFloorNumber(), o2.getFloorNumber());
-                if (floorComp != 0) {
-                    return floorComp;
-                }
-
-                // Newest timestamp
-                return Long.compare(o2.getTimestamp(), o1.getTimestamp());
+                return Long.compare(o1.getTimestamp(), o2.getTimestamp());
             }
         });
 
@@ -697,8 +604,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
 
         if (filteredList.isEmpty()) {
             String emptyMsg = isAllHalls
-                    ? "No orders in dispatch queue.\n(Waiting for buyer orders • Tap 🔄 in header to refresh)"
-                    : "No active orders found for " + selectedHallFilter + ".\n(Select \"All KUET Locations\" or tap 🔄 to refresh)";
+                    ? "No active orders in dispatch queue.\n(All orders delivered! Tap '📦 Delivered Orders Archive' to view completed orders)"
+                    : "No active orders found for " + selectedHallFilter + ".\n(Select \"All KUET Locations\" or check Delivered Archive)";
             tvNoSellerOrders.setText(emptyMsg);
             tvNoSellerOrders.setVisibility(View.VISIBLE);
             rvSellerOrders.setVisibility(View.GONE);
@@ -1219,6 +1126,17 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         try {
             FirebaseManager.getInstance().getTelemetryRef(order.getOrderId()).removeValue();
         } catch (Exception ignored) {}
+
+        // Auto-cleanup gate alert node upon delivery completion
+        if (!TextUtils.isEmpty(order.getBuyerId()) && !TextUtils.isEmpty(order.getOrderId())) {
+            try {
+                FirebaseManager.getInstance().getDatabase()
+                        .getReference("buyer_alerts")
+                        .child(order.getBuyerId())
+                        .child(order.getOrderId())
+                        .removeValue();
+            } catch (Exception ignored) {}
+        }
 
         // Week 10: Broadcast delivery completion alert
         Intent deliveredBroadcast = new Intent(DeliveryStatusReceiver.ACTION_DELIVERY_UPDATE);
