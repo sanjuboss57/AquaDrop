@@ -14,15 +14,15 @@
         android:background="@color/primary"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingTop="16dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="16dp"
+        android:paddingStart="16dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="14dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
             android:contentDescription="@string/app_name"
             android:src="@drawable/ic_water_drop"
             app:tint="@color/white" />
@@ -30,47 +30,59 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
+            android:layout_marginStart="10dp"
             android:layout_weight="1"
             android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AquaDrop"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvBuyerGreeting"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Welcome!"
-                android:textColor="@color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvBuyerLocationHeader"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="KUET Campus"
                 android:textColor="#E0F2FE"
-                android:textSize="13sp" />
+                android:textSize="12sp" />
         </LinearLayout>
 
+        <!-- Past Orders Navigation Button -->
         <ImageView
-            android:id="@+id/ivBuyerProfile"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
+            android:id="@+id/btnBuyerHistory"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="4dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Profile"
-            android:padding="6dp"
+            android:contentDescription="Past Orders"
+            android:padding="8dp"
+            android:src="@drawable/ic_history"
+            app:tint="@color/white" />
+
+        <!-- My Profile Navigation Button -->
+        <ImageView
+            android:id="@+id/btnBuyerProfile"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="My Profile"
+            android:padding="8dp"
             android:src="@drawable/ic_person"
             app:tint="@color/white" />
 
+        <!-- Logout Button -->
         <ImageView
             android:id="@+id/ivLogout"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Logout"
-            android:padding="6dp"
+            android:padding="8dp"
             android:src="@drawable/ic_logout" />
     </LinearLayout>
 
@@ -87,16 +99,16 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- 0. HIGH PRIORITY GATE ARRIVAL LIVE BROADCAST BANNER -->
+            <!-- HIGH PRIORITY GATE ARRIVAL LIVE ALERT BANNER -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardGateAlertBanner"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="14dp"
                 android:visibility="gone"
                 app:cardBackgroundColor="#FFF8E1"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="4dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="3dp"
                 app:strokeColor="#FFA000"
                 app:strokeWidth="2dp">
 
@@ -105,12 +117,11 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:padding="14dp">
+                    android:padding="12dp">
 
                     <ImageView
-                        android:id="@+id/ivGateAlertVanIcon"
-                        android:layout_width="38dp"
-                        android:layout_height="38dp"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
                         android:background="#FFECB3"
                         android:contentDescription="Van Gate Arrival"
                         android:padding="8dp"
@@ -120,8 +131,8 @@
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_marginEnd="8dp"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="6dp"
                         android:layout_weight="1"
                         android:orientation="vertical">
 
@@ -130,7 +141,7 @@
                             android:layout_height="wrap_content"
                             android:text="🚚 CAMPUS GATE ARRIVAL"
                             android:textColor="#E65100"
-                            android:textSize="12sp"
+                            android:textSize="11sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -138,16 +149,16 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Water Supply Van is now at your Hall Gate! Keep your empty jars ready."
+                            android:text="Water delivery van has arrived at your Hall Gate!"
                             android:textColor="#5D4037"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
                     <ImageView
                         android:id="@+id/ivDismissGateAlert"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="Dismiss Alert"
                         android:padding="6dp"
@@ -156,68 +167,134 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 1. Daily Water Quality Badge Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardWaterQuality"
+            <!-- SECTION 1: COMPACT TWO-COLUMN SUMMARY ROW -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/card_background"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/card_stroke"
-                app:strokeWidth="1dp">
+                android:layout_marginBottom="14dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                <!-- Left Column: Empty Jars Held & Deposit -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="14dp"
+                    app:cardElevation="2dp"
+                    app:strokeColor="@color/card_stroke"
+                    app:strokeWidth="1dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Daily Water Quality Badge"
-                            android:textColor="@color/primary_dark"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
+                        android:orientation="vertical"
+                        android:padding="12dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:background="@drawable/bg_badge"
-                            android:text="KUET Tested"
-                            android:textColor="@color/primary"
-                            android:textSize="11sp"
+                            android:text="My Bottle Ledger"
+                            android:textColor="@color/primary_dark"
+                            android:textSize="13sp"
                             android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:baselineAligned="false"
-                        android:orientation="horizontal">
 
                         <LinearLayout
-                            android:layout_width="0dp"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:background="#F0F8FF"
-                            android:orientation="vertical"
-                            android:padding="10dp">
+                            android:layout_marginTop="6dp"
+                            android:orientation="vertical">
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="TDS Level"
+                                android:text="Empty Jars Held:"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/tvEmptyJarsHeld"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0 Jars"
+                                android:textColor="@color/text_primary"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Deposit Balance:"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="11sp" />
+
+                            <TextView
+                                android:id="@+id/tvDepositBalance"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0 BDT"
+                                android:textColor="@color/success_green"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnOpenSplitter"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:layout_marginTop="4dp"
+                            android:padding="0dp"
+                            android:text="Mess Splitter"
+                            android:textAllCaps="false"
+                            android:textColor="@color/primary"
+                            android:textSize="11sp"
+                            app:icon="@drawable/ic_calculate"
+                            app:iconPadding="4dp"
+                            app:iconSize="14dp"
+                            app:iconTint="@color/primary" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Right Column: Water Quality (TDS / pH) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="14dp"
+                    app:cardElevation="2dp"
+                    app:strokeColor="@color/card_stroke"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Water Quality"
+                            android:textColor="@color/primary_dark"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="TDS Level:"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="11sp" />
 
@@ -225,26 +302,16 @@
                                 android:id="@+id/tvTdsLevel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
                                 android:text="42 ppm"
                                 android:textColor="@color/success_green"
-                                android:textSize="18sp"
+                                android:textSize="16sp"
                                 android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="10dp"
-                            android:layout_weight="1"
-                            android:background="#F0F8FF"
-                            android:orientation="vertical"
-                            android:padding="10dp">
 
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="pH Balance"
+                                android:layout_marginTop="4dp"
+                                android:text="pH Balance:"
                                 android:textColor="@color/text_secondary"
                                 android:textSize="11sp" />
 
@@ -252,256 +319,26 @@
                                 android:id="@+id/tvPhLevel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
                                 android:text="7.2 pH"
                                 android:textColor="@color/primary"
-                                android:textSize="18sp"
+                                android:textSize="14sp"
                                 android:textStyle="bold" />
                         </LinearLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvBatchStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="Batch: Certified Reverse Osmosis + UV Sterilized"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 1.5. Live Campus Weather & Student Hydration Card (Week 11 HTTP REST API + JSON) -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardCampusWeather"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/card_background"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/card_stroke"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
 
                         <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="⛅ Live KUET Weather &amp; Hydration"
-                            android:textColor="@color/primary_dark"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                        <ImageView
-                            android:id="@+id/ivRefreshWeatherApi"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:contentDescription="Refresh Weather via HTTP API"
-                            android:padding="4dp"
-                            android:src="@drawable/ic_refresh"
-                            app:tint="@color/primary" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:background="#FFF8E1"
-                            android:orientation="vertical"
-                            android:padding="8dp">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Campus Temp"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11sp" />
-
-                            <TextView
-                                android:id="@+id/tvWeatherTemp"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="-- °C"
-                                android:textColor="#E65100"
-                                android:textSize="16sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:background="#E0F7FA"
-                            android:orientation="vertical"
-                            android:padding="8dp">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Humidity"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="11sp" />
-
-                            <TextView
-                                android:id="@+id/tvWeatherHumidity"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="-- %"
-                                android:textColor="#00838F"
-                                android:textSize="16sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvWeatherAdvisory"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Fetching live campus weather and daily intake recommendation via HTTP REST API..."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Powered by Open-Meteo REST API • JSON Parsed"
-                        android:textColor="#9E9E9E"
-                        android:textSize="10sp"
-                        android:textStyle="italic" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 2. My Bottle Ledger Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardBottleLedger"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/card_background"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/card_stroke"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="My Bottle Ledger"
-                            android:textColor="@color/primary_dark"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnOpenSplitter"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:id="@+id/tvBatchStatus"
                             android:layout_width="wrap_content"
-                            android:layout_height="36dp"
-                            android:text="Mess Splitter"
-                            android:textAllCaps="false"
-                            android:textColor="@color/primary"
-                            android:textSize="12sp"
-                            app:icon="@drawable/ic_calculate"
-                            app:iconSize="16dp"
-                            app:iconTint="@color/primary" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Empty 20L Jars Held"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
-
-                            <TextView
-                                android:id="@+id/tvEmptyJarsHeld"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:text="0 Jars"
-                                android:textColor="@color/text_primary"
-                                android:textSize="20sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Refundable Deposit"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
-
-                            <TextView
-                                android:id="@+id/tvDepositBalance"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:text="0 BDT"
-                                android:textColor="@color/primary_dark"
-                                android:textSize="20sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
+                            android:layout_marginTop="8dp"
+                            android:text="RO + UV Purified"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
                     </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
 
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
-            <!-- 3. Order 20L Water Jars Card -->
+            <!-- SECTION 2: CLEAN "ORDER 20L WATER" CARD -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardOrderPlacement"
                 android:layout_width="match_parent"
@@ -509,7 +346,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardBackgroundColor="@color/card_background"
                 app:cardCornerRadius="16dp"
-                app:cardElevation="3dp"
+                app:cardElevation="2dp"
                 app:strokeColor="@color/card_stroke"
                 app:strokeWidth="1dp">
 
@@ -548,7 +385,7 @@
                                 android:layout_weight="1"
                                 android:text="Select Online Supplier *"
                                 android:textColor="@color/primary_dark"
-                                android:textSize="13sp"
+                                android:textSize="12sp"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -560,7 +397,7 @@
                                 android:paddingTop="2dp"
                                 android:paddingEnd="8dp"
                                 android:paddingBottom="2dp"
-                                android:text="Checking Suppliers..."
+                                android:text="Checking..."
                                 android:textColor="@color/primary"
                                 android:textSize="10sp"
                                 android:textStyle="bold" />
@@ -569,7 +406,7 @@
                         <Spinner
                             android:id="@+id/spinnerOnlineSellers"
                             android:layout_width="match_parent"
-                            android:layout_height="48dp"
+                            android:layout_height="44dp"
                             android:layout_marginTop="6dp"
                             android:background="@drawable/bg_rounded_card" />
 
@@ -580,100 +417,12 @@
                             android:layout_marginTop="6dp"
                             android:background="#FFEBEE"
                             android:padding="8dp"
-                            android:text="⚠️ No Sellers are currently Ready for Supply. Please wait for a supplier to go online."
+                            android:text="⚠️ No suppliers are currently Ready for Supply."
                             android:textColor="#C62828"
                             android:textSize="11sp"
                             android:textStyle="bold"
                             android:visibility="gone" />
                     </LinearLayout>
-
-                    <!-- Delivery GPS Location Selector -->
-                    <LinearLayout
-                        android:id="@+id/llDeliveryGpsSelector"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:background="#E0F7FA"
-                        android:orientation="vertical"
-                        android:padding="10dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <ImageView
-                                android:layout_width="18dp"
-                                android:layout_height="18dp"
-                                android:contentDescription="Location"
-                                android:src="@drawable/ic_location_pin"
-                                app:tint="#00838F" />
-
-                            <TextView
-                                android:id="@+id/tvSelectedDeliveryLocation"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="6dp"
-                                android:layout_weight="1"
-                                android:text="Amar Ekushey Hall • Room 304 (Fl 3)"
-                                android:textColor="#006064"
-                                android:textSize="13sp"
-                                android:textStyle="bold" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnChangeDeliveryGps"
-                                style="@style/Widget.MaterialComponents.Button.TextButton"
-                                android:layout_width="wrap_content"
-                                android:layout_height="32dp"
-                                android:padding="0dp"
-                                android:text="Change GPS"
-                                android:textAllCaps="false"
-                                android:textColor="#00838F"
-                                android:textSize="11sp"
-                                app:icon="@drawable/ic_edit"
-                                app:iconPadding="2dp"
-                                app:iconSize="12dp"
-                                app:iconTint="#00838F" />
-                        </LinearLayout>
-
-                        <TextView
-                            android:id="@+id/tvSelectedDeliveryGpsCoords"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="24dp"
-                            android:layout_marginTop="2dp"
-                            android:text="GPS: 22.899800° N, 89.501500° E"
-                            android:textColor="#00838F"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- Optional Exact Location / Directions / Landmark Explanation -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilExactLocationDirections"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Explain Exact Location / Directions (Optional)"
-                        app:boxCornerRadiusBottomEnd="10dp"
-                        app:boxCornerRadiusBottomStart="10dp"
-                        app:boxCornerRadiusTopEnd="10dp"
-                        app:boxCornerRadiusTopStart="10dp"
-                        app:boxStrokeColor="@color/primary"
-                        app:helperText="e.g., Near West Staircase, Room 304, Opposite Hall Canteen"
-                        app:helperTextTextColor="@color/text_secondary"
-                        app:startIconDrawable="@drawable/ic_location_pin"
-                        app:startIconTint="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etExactLocationDirections"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textCapSentences"
-                            android:maxLines="2"
-                            android:textSize="13sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Counter 1: Refill Jars (45 BDT) -->
                     <LinearLayout
@@ -694,7 +443,7 @@
                                 android:layout_height="wrap_content"
                                 android:text="20L Refill Jars (45 BDT)"
                                 android:textColor="@color/text_primary"
-                                android:textSize="14sp"
+                                android:textSize="13sp"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -708,8 +457,8 @@
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnRefillMinus"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
@@ -717,11 +466,11 @@
                             android:padding="0dp"
                             android:text="-"
                             android:textSize="18sp"
-                            app:cornerRadius="20dp" />
+                            app:cornerRadius="19dp" />
 
                         <TextView
                             android:id="@+id/tvRefillCount"
-                            android:layout_width="36dp"
+                            android:layout_width="34dp"
                             android:layout_height="wrap_content"
                             android:gravity="center"
                             android:text="1"
@@ -732,8 +481,8 @@
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnRefillPlus"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
@@ -741,7 +490,7 @@
                             android:padding="0dp"
                             android:text="+"
                             android:textSize="18sp"
-                            app:cornerRadius="20dp" />
+                            app:cornerRadius="19dp" />
                     </LinearLayout>
 
                     <!-- Counter 2: Empty Jars Returning Now -->
@@ -763,7 +512,7 @@
                                 android:layout_height="wrap_content"
                                 android:text="Empty Jars Returning Now"
                                 android:textColor="@color/text_primary"
-                                android:textSize="14sp"
+                                android:textSize="13sp"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -777,8 +526,8 @@
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnReturnMinus"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
@@ -786,11 +535,11 @@
                             android:padding="0dp"
                             android:text="-"
                             android:textSize="18sp"
-                            app:cornerRadius="20dp" />
+                            app:cornerRadius="19dp" />
 
                         <TextView
                             android:id="@+id/tvReturnCount"
-                            android:layout_width="36dp"
+                            android:layout_width="34dp"
                             android:layout_height="wrap_content"
                             android:gravity="center"
                             android:text="1"
@@ -801,8 +550,8 @@
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnReturnPlus"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
@@ -810,7 +559,7 @@
                             android:padding="0dp"
                             android:text="+"
                             android:textSize="18sp"
-                            app:cornerRadius="20dp" />
+                            app:cornerRadius="19dp" />
                     </LinearLayout>
 
                     <!-- Notice: Zero deposit / Free jar return -->
@@ -823,10 +572,10 @@
                         android:padding="8dp"
                         android:text="✓ Returning empty jars is 100% FREE (0 BDT). Only refill water is charged."
                         android:textColor="#2E7D32"
-                        android:textSize="12sp"
+                        android:textSize="11sp"
                         android:visibility="visible" />
 
-                    <!-- Emergency Express Delivery CheckBox & Priority Alert Notice -->
+                    <!-- Emergency Express Delivery CheckBox -->
                     <CheckBox
                         android:id="@+id/cbExpressDelivery"
                         android:layout_width="match_parent"
@@ -844,7 +593,7 @@
                         android:layout_marginTop="4dp"
                         android:background="#FFEBEE"
                         android:padding="8dp"
-                        android:text="🚨 EMERGENCY ORDER ALERT: Depot seller will receive an instant priority siren, high-contrast red alert banner, and top-of-queue priority dispatch!"
+                        android:text="🚨 High priority order with siren alert sent to depot seller!"
                         android:textColor="#C62828"
                         android:textSize="11sp"
                         android:textStyle="bold"
@@ -863,7 +612,7 @@
                         android:layout_height="wrap_content"
                         android:text="Payment Method"
                         android:textColor="@color/primary_dark"
-                        android:textSize="13sp"
+                        android:textSize="12sp"
                         android:textStyle="bold" />
 
                     <RadioGroup
@@ -881,7 +630,7 @@
                             android:checked="true"
                             android:text="Cash on Delivery"
                             android:textColor="@color/text_primary"
-                            android:textSize="13sp" />
+                            android:textSize="12sp" />
 
                         <RadioButton
                             android:id="@+id/rbBkash"
@@ -890,7 +639,7 @@
                             android:layout_weight="1"
                             android:text="bKash"
                             android:textColor="@color/text_primary"
-                            android:textSize="13sp" />
+                            android:textSize="12sp" />
                     </RadioGroup>
 
                     <com.google.android.material.textfield.TextInputLayout
@@ -898,7 +647,7 @@
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="6dp"
                         android:hint="bKash Transaction ID (e.g. 9J28DA1)"
                         android:visibility="gone">
 
@@ -929,7 +678,7 @@
                                 android:layout_height="wrap_content"
                                 android:text="Total Amount"
                                 android:textColor="@color/text_secondary"
-                                android:textSize="12sp" />
+                                android:textSize="11sp" />
 
                             <TextView
                                 android:id="@+id/tvOrderTotalPrice"
@@ -944,10 +693,10 @@
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnPlaceOrder"
                             android:layout_width="wrap_content"
-                            android:layout_height="50dp"
+                            android:layout_height="48dp"
                             android:backgroundTint="@color/primary"
-                            android:paddingStart="20dp"
-                            android:paddingEnd="20dp"
+                            android:paddingStart="22dp"
+                            android:paddingEnd="22dp"
                             android:text="Place Water Order"
                             android:textAllCaps="false"
                             android:textColor="@color/white"
@@ -958,12 +707,12 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 4. ACTIVE ORDERS PARTITION -->
+            <!-- SECTION 3: ACTIVE DELIVERIES ONLY -->
             <LinearLayout
-                android:id="@+id/llActiveOrdersPartition"
+                android:id="@+id/llActiveDeliveriesSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="4dp"
                 android:orientation="vertical">
 
                 <LinearLayout
@@ -975,7 +724,7 @@
                     <ImageView
                         android:layout_width="22dp"
                         android:layout_height="22dp"
-                        android:contentDescription="Active Delivery"
+                        android:contentDescription="Active Deliveries"
                         android:src="@drawable/ic_delivery_van"
                         app:tint="@color/primary" />
 
@@ -984,9 +733,9 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
                         android:layout_weight="1"
-                        android:text="Active Deliveries &amp; In-Progress"
+                        android:text="Active Deliveries"
                         android:textColor="@color/primary_dark"
-                        android:textSize="17sp"
+                        android:textSize="16sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -995,94 +744,29 @@
                         android:layout_height="wrap_content"
                         android:background="#E0F2FE"
                         android:paddingStart="8dp"
-                        android:paddingTop="3dp"
+                        android:paddingTop="2dp"
                         android:paddingEnd="8dp"
-                        android:paddingBottom="3dp"
+                        android:paddingBottom="2dp"
                         android:text="0 Active"
                         android:textColor="@color/primary"
                         android:textSize="11sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
+                <!-- Clean minimal placeholder if no active orders -->
                 <TextView
                     android:id="@+id/tvNoActiveOrdersPlaceholder"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:padding="20dp"
-                    android:text="No active orders right now.\nPlace a 20L refill order above!"
+                    android:padding="24dp"
+                    android:text="No active deliveries right now."
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp"
                     android:visibility="gone" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rvActiveOrders"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:nestedScrollingEnabled="false"
-                    tools:listitem="@layout/item_buyer_order" />
-            </LinearLayout>
-
-            <!-- 5. PAST ORDERS & HISTORY PARTITION -->
-            <LinearLayout
-                android:id="@+id/llPastOrdersPartition"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:contentDescription="Past Orders"
-                        android:src="@drawable/ic_water_drop"
-                        app:tint="#2E7D32" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:layout_weight="1"
-                        android:text="Past Orders &amp; Delivery History"
-                        android:textColor="@color/primary_dark"
-                        android:textSize="17sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvPastOrdersCountBadge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="#E8F5E9"
-                        android:paddingStart="8dp"
-                        android:paddingTop="3dp"
-                        android:paddingEnd="8dp"
-                        android:paddingBottom="3dp"
-                        android:text="0 Completed"
-                        android:textColor="#2E7D32"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvNoPastOrdersPlaceholder"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:padding="20dp"
-                    android:text="No past order history yet.\nCompleted deliveries will appear here."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:visibility="gone" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvPastOrders"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"

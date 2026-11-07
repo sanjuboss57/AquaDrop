@@ -5,16 +5,14 @@ import android.app.Dialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
-import androidx.core.app.NotificationCompat;
-import com.google.android.material.card.MaterialCardView;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
@@ -24,27 +22,23 @@ import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.location.Priority;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseUser;
@@ -53,7 +47,6 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.MetadataChanges;
@@ -67,11 +60,8 @@ import com.kuet.aquadrop.models.WaterOrder;
 import com.kuet.aquadrop.models.WaterQuality;
 import com.kuet.aquadrop.providers.AquaDropContentProvider;
 import com.kuet.aquadrop.receivers.DeliveryStatusReceiver;
-import com.kuet.aquadrop.utils.CampusWeatherApiClient;
 import com.kuet.aquadrop.utils.FirebaseManager;
 import com.kuet.aquadrop.utils.KuetLocations;
-
-import android.content.ContentValues;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,7 +75,6 @@ import java.util.UUID;
 public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOrderAdapter.OnOrderActionListener {
 
     private static final int PRICE_REFILL_JAR = 45;
-    private static final int SECURITY_DEPOSIT_PER_JAR = 200;
     private static final int EXPRESS_DELIVERY_SURCHARGE = 15;
 
     // Targeted Gate Arrival Live Alert Banner Views & State
@@ -98,33 +87,28 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
     // Header Views
     private TextView tvBuyerGreeting;
-    private TextView tvBuyerLocationHeader;
-    private ImageView ivBuyerProfile;
+    private ImageView btnBuyerHistory;
+    private ImageView btnBuyerProfile;
     private ImageView ivLogout;
 
-    // Water Quality Views
+    // Section 1: Bottle Ledger & Water Quality Views
+    private TextView tvEmptyJarsHeld;
+    private TextView tvDepositBalance;
+    private MaterialButton btnOpenSplitter;
     private TextView tvTdsLevel;
     private TextView tvPhLevel;
     private TextView tvBatchStatus;
 
-    // Live Campus Weather Views (Week 11 HTTP REST API + JSON)
-    private TextView tvWeatherTemp;
-    private TextView tvWeatherHumidity;
-    private TextView tvWeatherAdvisory;
-    private ImageView ivRefreshWeatherApi;
+    // Section 2: Order Form Views
+    private Spinner spinnerOnlineSellers;
+    private TextView tvOnlineSellersBadge;
+    private TextView tvNoOnlineSellersWarning;
+    private final List<User> onlineSellersList = new ArrayList<>();
+    private final Map<String, User> liveOnlineSellersMap = new HashMap<>();
+    private User selectedOnlineSeller = null;
+    private ValueEventListener rtdbOnlineSellersListener;
+    private ListenerRegistration firestoreOnlineSellersListener;
 
-    // Bottle Ledger Views
-    private TextView tvEmptyJarsHeld;
-    private TextView tvDepositBalance;
-    private MaterialButton btnOpenSplitter;
-
-    // Delivery GPS Location Views
-    private LinearLayout llDeliveryGpsSelector;
-    private TextView tvSelectedDeliveryLocation;
-    private TextView tvSelectedDeliveryGpsCoords;
-    private MaterialButton btnChangeDeliveryGps;
-
-    // Order Form Views
     private MaterialButton btnRefillMinus;
     private TextView tvRefillCount;
     private MaterialButton btnRefillPlus;
@@ -136,7 +120,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private TextView tvDepositNotice;
     private CheckBox cbExpressDelivery;
     private TextView tvExpressAlertNotice;
-    private TextInputEditText etExactLocationDirections;
 
     private RadioGroup rgPaymentMethod;
     private RadioButton rbCashOnDelivery;
@@ -147,40 +130,17 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private TextView tvOrderTotalPrice;
     private MaterialButton btnPlaceOrder;
 
-    // Online Suppliers State & Views
-    private Spinner spinnerOnlineSellers;
-    private TextView tvOnlineSellersBadge;
-    private TextView tvNoOnlineSellersWarning;
-    private final List<User> onlineSellersList = new ArrayList<>();
-    private final Map<String, User> liveOnlineSellersMap = new HashMap<>();
-    private User selectedOnlineSeller = null;
-    private ValueEventListener rtdbOnlineSellersListener;
-    private ListenerRegistration firestoreOnlineSellersListener;
-
-    // Active & Past Orders Partition Views & Adapters
+    // Section 3: Active Orders Only Views & Adapter
     private RecyclerView rvActiveOrders;
     private TextView tvNoActiveOrdersPlaceholder;
     private TextView tvActiveOrdersCountBadge;
     private BuyerOrderAdapter activeOrderAdapter;
-
-    private RecyclerView rvPastOrders;
-    private TextView tvNoPastOrdersPlaceholder;
-    private TextView tvPastOrdersCountBadge;
-    private BuyerOrderAdapter pastOrderAdapter;
 
     // State Variables
     private User currentUser;
     private int refillJarCount = 1;
     private int returnJarCount = 1;
     private double calculatedTotal = PRICE_REFILL_JAR;
-
-    // Delivery GPS State
-    private double orderLatitude = 22.8998;
-    private double orderLongitude = 89.5015;
-    private String orderLocationName = "";
-    private String orderRoom = "";
-    private int orderFloor = 1;
-    private FusedLocationProviderClient fusedLocationClient;
 
     // Firestore Registrations
     private ListenerRegistration userListenerRegistration;
@@ -193,25 +153,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private ValueEventListener rtdbQualityListener;
     private final Map<String, WaterOrder> buyerOrdersMap = new HashMap<>();
 
-    private final ActivityResultLauncher<String[]> locationPermissionLauncher = registerForActivityResult(
-            new ActivityResultContracts.RequestMultiplePermissions(),
-            result -> {
-                Boolean fine = result.get(Manifest.permission.ACCESS_FINE_LOCATION);
-                Boolean coarse = result.get(Manifest.permission.ACCESS_COARSE_LOCATION);
-                if (Boolean.TRUE.equals(fine) || Boolean.TRUE.equals(coarse)) {
-                    detectDeviceGpsForDelivery();
-                } else {
-                    Toast.makeText(this, "GPS permission denied. Using selected campus building GPS.", Toast.LENGTH_SHORT).show();
-                }
-            }
-    );
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_buyer_dashboard);
-
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -226,7 +171,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         setupRecyclerView();
         setupListeners();
         subscribeToFirestoreData();
-        refreshCampusWeather();
     }
 
     private void initViews() {
@@ -235,27 +179,21 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         ivDismissGateAlert = findViewById(R.id.ivDismissGateAlert);
 
         tvBuyerGreeting = findViewById(R.id.tvBuyerGreeting);
-        tvBuyerLocationHeader = findViewById(R.id.tvBuyerLocationHeader);
-        ivBuyerProfile = findViewById(R.id.ivBuyerProfile);
+        btnBuyerHistory = findViewById(R.id.btnBuyerHistory);
+        btnBuyerProfile = findViewById(R.id.btnBuyerProfile);
         ivLogout = findViewById(R.id.ivLogout);
-
-        llDeliveryGpsSelector = findViewById(R.id.llDeliveryGpsSelector);
-        tvSelectedDeliveryLocation = findViewById(R.id.tvSelectedDeliveryLocation);
-        tvSelectedDeliveryGpsCoords = findViewById(R.id.tvSelectedDeliveryGpsCoords);
-        btnChangeDeliveryGps = findViewById(R.id.btnChangeDeliveryGps);
 
         tvTdsLevel = findViewById(R.id.tvTdsLevel);
         tvPhLevel = findViewById(R.id.tvPhLevel);
         tvBatchStatus = findViewById(R.id.tvBatchStatus);
 
-        tvWeatherTemp = findViewById(R.id.tvWeatherTemp);
-        tvWeatherHumidity = findViewById(R.id.tvWeatherHumidity);
-        tvWeatherAdvisory = findViewById(R.id.tvWeatherAdvisory);
-        ivRefreshWeatherApi = findViewById(R.id.ivRefreshWeatherApi);
-
         tvEmptyJarsHeld = findViewById(R.id.tvEmptyJarsHeld);
         tvDepositBalance = findViewById(R.id.tvDepositBalance);
         btnOpenSplitter = findViewById(R.id.btnOpenSplitter);
+
+        spinnerOnlineSellers = findViewById(R.id.spinnerOnlineSellers);
+        tvOnlineSellersBadge = findViewById(R.id.tvOnlineSellersBadge);
+        tvNoOnlineSellersWarning = findViewById(R.id.tvNoOnlineSellersWarning);
 
         btnRefillMinus = findViewById(R.id.btnRefillMinus);
         tvRefillCount = findViewById(R.id.tvRefillCount);
@@ -268,7 +206,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         tvDepositNotice = findViewById(R.id.tvDepositNotice);
         cbExpressDelivery = findViewById(R.id.cbExpressDelivery);
         tvExpressAlertNotice = findViewById(R.id.tvExpressAlertNotice);
-        etExactLocationDirections = findViewById(R.id.etExactLocationDirections);
 
         rgPaymentMethod = findViewById(R.id.rgPaymentMethod);
         rbCashOnDelivery = findViewById(R.id.rbCashOnDelivery);
@@ -279,17 +216,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         tvOrderTotalPrice = findViewById(R.id.tvOrderTotalPrice);
         btnPlaceOrder = findViewById(R.id.btnPlaceOrder);
 
-        spinnerOnlineSellers = findViewById(R.id.spinnerOnlineSellers);
-        tvOnlineSellersBadge = findViewById(R.id.tvOnlineSellersBadge);
-        tvNoOnlineSellersWarning = findViewById(R.id.tvNoOnlineSellersWarning);
-
         rvActiveOrders = findViewById(R.id.rvActiveOrders);
         tvNoActiveOrdersPlaceholder = findViewById(R.id.tvNoActiveOrdersPlaceholder);
         tvActiveOrdersCountBadge = findViewById(R.id.tvActiveOrdersCountBadge);
-
-        rvPastOrders = findViewById(R.id.rvPastOrders);
-        tvNoPastOrdersPlaceholder = findViewById(R.id.tvNoPastOrdersPlaceholder);
-        tvPastOrdersCountBadge = findViewById(R.id.tvPastOrdersCountBadge);
     }
 
     private void setupOrderCounters() {
@@ -356,12 +285,16 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         calculatedTotal = baseCost + expressSurcharge;
 
         // Returning jars is 100% FREE (0 BDT) - no deposit surcharge is charged to the buyer
-        tvDepositNotice.setVisibility(View.VISIBLE);
-        tvDepositNotice.setBackgroundColor(Color.parseColor("#E8F5E9"));
-        tvDepositNotice.setTextColor(Color.parseColor("#2E7D32"));
-        tvDepositNotice.setText("✓ Returning empty jars is 100% FREE (0 BDT). Only refill water is charged.");
+        if (tvDepositNotice != null) {
+            tvDepositNotice.setVisibility(View.VISIBLE);
+            tvDepositNotice.setBackgroundColor(Color.parseColor("#E8F5E9"));
+            tvDepositNotice.setTextColor(Color.parseColor("#2E7D32"));
+            tvDepositNotice.setText("✓ Returning empty jars is 100% FREE (0 BDT). Only refill water is charged.");
+        }
 
-        tvOrderTotalPrice.setText(String.format(Locale.getDefault(), "%.0f BDT", calculatedTotal));
+        if (tvOrderTotalPrice != null) {
+            tvOrderTotalPrice.setText(String.format(Locale.getDefault(), "%.0f BDT", calculatedTotal));
+        }
     }
 
     private void setupPaymentOptions() {
@@ -381,10 +314,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         rvActiveOrders.setLayoutManager(new LinearLayoutManager(this));
         activeOrderAdapter = new BuyerOrderAdapter(this);
         rvActiveOrders.setAdapter(activeOrderAdapter);
-
-        rvPastOrders.setLayoutManager(new LinearLayoutManager(this));
-        pastOrderAdapter = new BuyerOrderAdapter(this);
-        rvPastOrders.setAdapter(pastOrderAdapter);
     }
 
     private void setupListeners() {
@@ -429,149 +358,82 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         View.OnClickListener profileOpener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(BuyerDashboardActivity.this, ProfileActivity.class));
+                startActivity(new Intent(BuyerDashboardActivity.this, BuyerProfileActivity.class));
             }
         };
 
-        if (ivBuyerProfile != null) {
-            ivBuyerProfile.setOnClickListener(profileOpener);
+        if (btnBuyerProfile != null) {
+            btnBuyerProfile.setOnClickListener(profileOpener);
         }
-        tvBuyerGreeting.setOnClickListener(profileOpener);
-        tvBuyerLocationHeader.setOnClickListener(profileOpener);
-
-        View.OnClickListener gpsSelectListener = new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showSelectDeliveryGpsDialog();
-            }
-        };
-
-        if (btnChangeDeliveryGps != null) {
-            btnChangeDeliveryGps.setOnClickListener(gpsSelectListener);
-        }
-        if (llDeliveryGpsSelector != null) {
-            llDeliveryGpsSelector.setOnClickListener(gpsSelectListener);
+        if (tvBuyerGreeting != null) {
+            tvBuyerGreeting.setOnClickListener(profileOpener);
         }
 
-        ivLogout.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                FirebaseManager.getInstance().signOut();
-                Intent intent = new Intent(BuyerDashboardActivity.this, LoginActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                finish();
-            }
-        });
-
-        btnOpenSplitter.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showMessBillSplitterDialog();
-            }
-        });
-
-        btnPlaceOrder.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                placeWaterOrder();
-            }
-        });
-
-        if (ivRefreshWeatherApi != null) {
-            ivRefreshWeatherApi.setOnClickListener(new View.OnClickListener() {
+        if (btnBuyerHistory != null) {
+            btnBuyerHistory.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    refreshCampusWeather();
+                    startActivity(new Intent(BuyerDashboardActivity.this, BuyerOrderHistoryActivity.class));
+                }
+            });
+        }
+
+        if (ivLogout != null) {
+            ivLogout.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    FirebaseManager.getInstance().signOut();
+                    Intent intent = new Intent(BuyerDashboardActivity.this, LoginActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    finish();
+                }
+            });
+        }
+
+        if (btnOpenSplitter != null) {
+            btnOpenSplitter.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showMessBillSplitterDialog();
+                }
+            });
+        }
+
+        if (btnPlaceOrder != null) {
+            btnPlaceOrder.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    placeWaterOrder();
                 }
             });
         }
     }
 
-    /**
-     * Week 11 Syllabus: Networking & Data Handling via HTTP REST API and JSON parsing.
-     * Connects to Open-Meteo REST API using native HttpURLConnection on background ExecutorService.
-     */
-    private void refreshCampusWeather() {
-        if (tvWeatherAdvisory != null) {
-            tvWeatherAdvisory.setText("Connecting to Open-Meteo REST API via HTTP GET (JSON parsing)...");
-        }
-        CampusWeatherApiClient.fetchCampusHydrationMetrics(new CampusWeatherApiClient.WeatherCallback() {
-            @Override
-            public void onSuccess(double temperatureCelsius, double humidityPercent, String hydrationAdvisory) {
-                if (tvWeatherTemp != null) {
-                    tvWeatherTemp.setText(String.format(Locale.getDefault(), "%.1f °C", temperatureCelsius));
-                }
-                if (tvWeatherHumidity != null) {
-                    tvWeatherHumidity.setText(String.format(Locale.getDefault(), "%.0f %%", humidityPercent));
-                }
-                if (tvWeatherAdvisory != null) {
-                    tvWeatherAdvisory.setText(hydrationAdvisory);
-                }
-            }
-
-            @Override
-            public void onFailure(String errorMessage) {
-                if (tvWeatherAdvisory != null) {
-                    tvWeatherAdvisory.setText("Offline Advisory: Maintain 3L healthy hydration on campus.");
-                }
-            }
-        });
-    }
-
     private void applyBuyerProfile(User user) {
         if (user == null) return;
         this.currentUser = user;
-        tvBuyerGreeting.setText(String.format("Hello, %s", user.getName()));
-        tvBuyerLocationHeader.setText(String.format(Locale.getDefault(),
-                "%s • Room %s (Fl %d)",
-                user.getLocationName(),
-                user.getRoomOrFlatNo(),
-                user.getFloorNumber()));
-
-        tvEmptyJarsHeld.setText(String.format(Locale.getDefault(), "%d Jars", user.getEmptyJarsHeld()));
-        tvDepositBalance.setText(String.format(Locale.getDefault(), "%.0f BDT", user.getDepositBalance()));
-
-        // Synchronize order GPS state with profile data
-        if (TextUtils.isEmpty(orderLocationName)) {
-            orderLocationName = user.getLocationName();
-            orderRoom = user.getRoomOrFlatNo();
-            orderFloor = user.getFloorNumber();
-            orderLatitude = user.getLatitude();
-            orderLongitude = user.getLongitude();
-
-            if (orderLatitude == 0.0 || orderLongitude == 0.0) {
-                LatLng p = KuetLocations.getLatLngByName(orderLocationName);
-                if (p != null) {
-                    orderLatitude = p.latitude;
-                    orderLongitude = p.longitude;
-                }
-            }
-            updateDeliveryGpsDisplay();
+        if (tvBuyerGreeting != null) {
+            tvBuyerGreeting.setText(String.format("Hello, %s", user.getName()));
         }
-
-        String savedDirections = !TextUtils.isEmpty(user.getOptionalDirections())
-                ? user.getOptionalDirections()
-                : user.getLocationNotes();
-        if (etExactLocationDirections != null && !TextUtils.isEmpty(savedDirections)
-                && TextUtils.isEmpty(etExactLocationDirections.getText())) {
-            etExactLocationDirections.setText(savedDirections);
+        if (tvEmptyJarsHeld != null) {
+            tvEmptyJarsHeld.setText(String.format(Locale.getDefault(), "%d Jars", user.getEmptyJarsHeld()));
+        }
+        if (tvDepositBalance != null) {
+            tvDepositBalance.setText(String.format(Locale.getDefault(), "%.0f BDT", user.getDepositBalance()));
         }
     }
 
     private void refreshBuyerOrdersUi() {
         List<WaterOrder> all = new ArrayList<>(buyerOrdersMap.values());
         List<WaterOrder> activeOrders = new ArrayList<>();
-        List<WaterOrder> pastOrders = new ArrayList<>();
 
         for (WaterOrder order : all) {
             if (order == null) continue;
             String status = order.getStatus();
             boolean isPast = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
                     || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
-            if (isPast) {
-                pastOrders.add(order);
-            } else {
+            if (!isPast) {
                 activeOrders.add(order);
             }
         }
@@ -590,34 +452,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
             }
         });
 
-        // Sort past orders: Newest delivered / finished timestamp first
-        Collections.sort(pastOrders, new Comparator<WaterOrder>() {
-            @Override
-            public int compare(WaterOrder o1, WaterOrder o2) {
-                if (o1 == null && o2 == null) return 0;
-                if (o1 == null) return 1;
-                if (o2 == null) return -1;
-                long t1 = o1.getDeliveredTimestamp() > 0 ? o1.getDeliveredTimestamp() : o1.getTimestamp();
-                long t2 = o2.getDeliveredTimestamp() > 0 ? o2.getDeliveredTimestamp() : o2.getTimestamp();
-                return Long.compare(t2, t1);
-            }
-        });
-
         if (activeOrderAdapter != null) {
             activeOrderAdapter.setOrders(activeOrders);
             activeOrderAdapter.notifyDataSetChanged();
         }
 
-        if (pastOrderAdapter != null) {
-            pastOrderAdapter.setOrders(pastOrders);
-            pastOrderAdapter.notifyDataSetChanged();
-        }
-
         if (tvActiveOrdersCountBadge != null) {
             tvActiveOrdersCountBadge.setText(String.format(Locale.getDefault(), "%d Active", activeOrders.size()));
-        }
-        if (tvPastOrdersCountBadge != null) {
-            tvPastOrdersCountBadge.setText(String.format(Locale.getDefault(), "%d Completed", pastOrders.size()));
         }
 
         if (activeOrders.isEmpty()) {
@@ -626,14 +467,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         } else {
             if (tvNoActiveOrdersPlaceholder != null) tvNoActiveOrdersPlaceholder.setVisibility(View.GONE);
             if (rvActiveOrders != null) rvActiveOrders.setVisibility(View.VISIBLE);
-        }
-
-        if (pastOrders.isEmpty()) {
-            if (tvNoPastOrdersPlaceholder != null) tvNoPastOrdersPlaceholder.setVisibility(View.VISIBLE);
-            if (rvPastOrders != null) rvPastOrders.setVisibility(View.GONE);
-        } else {
-            if (tvNoPastOrdersPlaceholder != null) tvNoPastOrdersPlaceholder.setVisibility(View.GONE);
-            if (rvPastOrders != null) rvPastOrders.setVisibility(View.VISIBLE);
         }
     }
 
@@ -693,9 +526,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                     try {
                         WaterQuality quality = snapshot.getValue(WaterQuality.class);
                         if (quality != null) {
-                            tvTdsLevel.setText(String.format(Locale.getDefault(), "%.0f ppm", quality.getTds()));
-                            tvPhLevel.setText(String.format(Locale.getDefault(), "%.1f pH", quality.getPh()));
-                            tvBatchStatus.setText(String.format("Batch: %s", quality.getBatchStatus()));
+                            if (tvTdsLevel != null) tvTdsLevel.setText(String.format(Locale.getDefault(), "%.0f ppm", quality.getTds()));
+                            if (tvPhLevel != null) tvPhLevel.setText(String.format(Locale.getDefault(), "%.1f pH", quality.getPh()));
+                            if (tvBatchStatus != null) tvBatchStatus.setText(String.format("Batch: %s", quality.getBatchStatus()));
                         }
                     } catch (Exception ignored) {}
                 }
@@ -715,9 +548,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                             if (snapshot != null && snapshot.exists()) {
                                 WaterQuality quality = snapshot.toObject(WaterQuality.class);
                                 if (quality != null) {
-                                    tvTdsLevel.setText(String.format(Locale.getDefault(), "%.0f ppm", quality.getTds()));
-                                    tvPhLevel.setText(String.format(Locale.getDefault(), "%.1f pH", quality.getPh()));
-                                    tvBatchStatus.setText(String.format("Batch: %s", quality.getBatchStatus()));
+                                    if (tvTdsLevel != null) tvTdsLevel.setText(String.format(Locale.getDefault(), "%.0f ppm", quality.getTds()));
+                                    if (tvPhLevel != null) tvPhLevel.setText(String.format(Locale.getDefault(), "%.1f pH", quality.getPh()));
+                                    if (tvBatchStatus != null) tvBatchStatus.setText(String.format("Batch: %s", quality.getBatchStatus()));
                                 }
                             }
                         }
@@ -1046,153 +879,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         }
     }
 
-    private void updateDeliveryGpsDisplay() {
-        if (tvSelectedDeliveryLocation != null) {
-            tvSelectedDeliveryLocation.setText(String.format(Locale.getDefault(),
-                    "%s • Room %s (Fl %d)",
-                    !TextUtils.isEmpty(orderLocationName) ? orderLocationName : "Campus Hall",
-                    !TextUtils.isEmpty(orderRoom) ? orderRoom : "101",
-                    orderFloor));
-        }
-        if (tvSelectedDeliveryGpsCoords != null) {
-            tvSelectedDeliveryGpsCoords.setText(String.format(Locale.getDefault(),
-                    "GPS: %.5f° N, %.5f° E", orderLatitude, orderLongitude));
-        }
-    }
-
-    private void showSelectDeliveryGpsDialog() {
-        final Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(R.layout.dialog_select_gps);
-
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        }
-
-        final Spinner spinner = dialog.findViewById(R.id.spinnerSelectGpsLocation);
-        final TextInputEditText etRoom = dialog.findViewById(R.id.etSelectGpsRoom);
-        final TextInputEditText etFloor = dialog.findViewById(R.id.etSelectGpsFloor);
-        final TextInputEditText etSelectGpsDirections = dialog.findViewById(R.id.etSelectGpsDirections);
-        final TextView tvCoords = dialog.findViewById(R.id.tvActiveGpsCoords);
-        MaterialButton btnDetect = dialog.findViewById(R.id.btnDetectDeviceGps);
-        MaterialButton btnCancel = dialog.findViewById(R.id.btnCancelSelectGps);
-        MaterialButton btnConfirm = dialog.findViewById(R.id.btnConfirmSelectGps);
-
-        final double[] tempCoords = new double[]{orderLatitude, orderLongitude};
-
-        List<String> locations = KuetLocations.getLocationNames();
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, locations);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-
-        int idx = locations.indexOf(!TextUtils.isEmpty(orderLocationName) ? orderLocationName : (currentUser != null ? currentUser.getLocationName() : ""));
-        if (idx >= 0) spinner.setSelection(idx);
-
-        etRoom.setText(!TextUtils.isEmpty(orderRoom) ? orderRoom : (currentUser != null ? currentUser.getRoomOrFlatNo() : ""));
-        etFloor.setText(String.valueOf(orderFloor > 0 ? orderFloor : (currentUser != null ? currentUser.getFloorNumber() : 1)));
-        if (etSelectGpsDirections != null && etExactLocationDirections != null && !TextUtils.isEmpty(etExactLocationDirections.getText())) {
-            etSelectGpsDirections.setText(etExactLocationDirections.getText());
-        }
-        tvCoords.setText(String.format(Locale.getDefault(), "%.6f° N, %.6f° E", tempCoords[0], tempCoords[1]));
-
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String loc = (String) parent.getItemAtPosition(position);
-                LatLng p = KuetLocations.getLatLngByName(loc);
-                if (p != null) {
-                    tempCoords[0] = p.latitude;
-                    tempCoords[1] = p.longitude;
-                    tvCoords.setText(String.format(Locale.getDefault(), "%.6f° N, %.6f° E", tempCoords[0], tempCoords[1]));
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        btnDetect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (ContextCompat.checkSelfPermission(BuyerDashboardActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).addOnSuccessListener(loc -> {
-                        if (loc != null) {
-                            tempCoords[0] = loc.getLatitude();
-                            tempCoords[1] = loc.getLongitude();
-                            tvCoords.setText(String.format(Locale.getDefault(), "%.6f° N, %.6f° E (Live Device)", tempCoords[0], tempCoords[1]));
-                            Toast.makeText(BuyerDashboardActivity.this, "Live GPS coordinates detected!", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(BuyerDashboardActivity.this, "Could not acquire GPS fix. Ensure GPS is enabled.", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                } else {
-                    locationPermissionLauncher.launch(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION});
-                }
-            }
-        });
-
-        btnCancel.setOnClickListener(v -> dialog.dismiss());
-
-        btnConfirm.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String selLoc = (String) spinner.getSelectedItem();
-                String selRoom = etRoom.getText() != null ? etRoom.getText().toString().trim() : "";
-                String floorStr = etFloor.getText() != null ? etFloor.getText().toString().trim() : "1";
-                String directions = etSelectGpsDirections != null && etSelectGpsDirections.getText() != null
-                        ? etSelectGpsDirections.getText().toString().trim() : "";
-
-                int f = 1;
-                try { f = Integer.parseInt(floorStr); } catch (Exception ignored) {}
-
-                orderLocationName = selLoc;
-                orderRoom = !TextUtils.isEmpty(selRoom) ? selRoom : "101";
-                orderFloor = f;
-                orderLatitude = tempCoords[0];
-                orderLongitude = tempCoords[1];
-
-                if (etExactLocationDirections != null && !TextUtils.isEmpty(directions)) {
-                    etExactLocationDirections.setText(directions);
-                }
-
-                updateDeliveryGpsDisplay();
-                Toast.makeText(BuyerDashboardActivity.this, "Delivery GPS set to " + selLoc, Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
-
-                // Silently sync updated delivery location & GPS to buyer's profile in Firestore
-                if (currentUser != null) {
-                    Map<String, Object> update = new HashMap<>();
-                    update.put("locationName", selLoc);
-                    update.put("roomOrFlatNo", orderRoom);
-                    update.put("floorNumber", orderFloor);
-                    update.put("latitude", orderLatitude);
-                    update.put("longitude", orderLongitude);
-                    if (!TextUtils.isEmpty(directions)) {
-                        update.put("locationNotes", directions);
-                    }
-                    FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid()).update(update);
-                }
-            }
-        });
-
-        dialog.show();
-    }
-
-    private void detectDeviceGpsForDelivery() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
-        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).addOnSuccessListener(loc -> {
-            if (loc != null) {
-                orderLatitude = loc.getLatitude();
-                orderLongitude = loc.getLongitude();
-                updateDeliveryGpsDisplay();
-                Toast.makeText(this, "Live GPS coordinates updated!", Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
     private void placeWaterOrder() {
         if (currentUser == null) {
             Toast.makeText(this, "Profile not loaded yet. Please wait…", Toast.LENGTH_SHORT).show();
@@ -1234,11 +920,32 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         final String qrToken = "AQ-VERIFY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         final int extraDepositJars = 0; // Empty jars are free (0 BDT)
 
-        final String finalLocName = !TextUtils.isEmpty(orderLocationName) ? orderLocationName : currentUser.getLocationName();
-        final String finalRoom = !TextUtils.isEmpty(orderRoom) ? orderRoom : currentUser.getRoomOrFlatNo();
-        final int finalFloor = orderFloor > 0 ? orderFloor : currentUser.getFloorNumber();
-        final double finalLat = orderLatitude != 0.0 ? orderLatitude : currentUser.getLatitude();
-        final double finalLng = orderLongitude != 0.0 ? orderLongitude : currentUser.getLongitude();
+        final String finalLocName = !TextUtils.isEmpty(currentUser.getLocationName())
+                ? currentUser.getLocationName()
+                : "KUET Campus";
+        final String finalRoom = !TextUtils.isEmpty(currentUser.getRoomOrFlatNo())
+                ? currentUser.getRoomOrFlatNo()
+                : "101";
+        final int finalFloor = currentUser.getFloorNumber() > 0
+                ? currentUser.getFloorNumber()
+                : 1;
+
+        double finalLat = currentUser.getLatitude();
+        double finalLng = currentUser.getLongitude();
+        if (finalLat == 0.0 || finalLng == 0.0) {
+            LatLng p = KuetLocations.getLatLngByName(finalLocName);
+            if (p != null) {
+                finalLat = p.latitude;
+                finalLng = p.longitude;
+            } else {
+                finalLat = 22.8998;
+                finalLng = 89.5015;
+            }
+        }
+
+        String exactLocationNotes = !TextUtils.isEmpty(currentUser.getOptionalDirections())
+                ? currentUser.getOptionalDirections()
+                : (!TextUtils.isEmpty(currentUser.getLocationNotes()) ? currentUser.getLocationNotes() : "");
 
         final WaterOrder newOrder = new WaterOrder(
                 orderId,
@@ -1262,15 +969,6 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 qrToken
         );
 
-        String exactLocationNotes = etExactLocationDirections != null && etExactLocationDirections.getText() != null
-                ? etExactLocationDirections.getText().toString().trim() : "";
-        if (TextUtils.isEmpty(exactLocationNotes) && currentUser != null) {
-            exactLocationNotes = !TextUtils.isEmpty(currentUser.getOptionalDirections())
-                    ? currentUser.getOptionalDirections()
-                    : currentUser.getLocationNotes();
-        }
-        if (exactLocationNotes == null) exactLocationNotes = "";
-
         newOrder.setLocationNotes(exactLocationNotes);
         newOrder.setOptionalDirections(exactLocationNotes);
 
@@ -1290,6 +988,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
         // Dual-storage write: Realtime Database (guaranteed online sync) + Cloud Firestore
         final String finalExactDirections = exactLocationNotes;
+        final double latForIntent = finalLat;
+        final double lngForIntent = finalLng;
+
         FirebaseManager.getInstance().saveOrder(newOrder,
                 new com.google.android.gms.tasks.OnSuccessListener<Void>() {
                     @Override
@@ -1304,20 +1005,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, orderId);
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_PENDING);
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "Order #" + orderId + " placed! Waiting for depot dispatch.");
-                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, finalLat);
-                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, finalLng);
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, latForIntent);
+                        alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, lngForIntent);
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, finalLocName);
                         alertIntent.putExtra("locationNotes", finalExactDirections);
                         alertIntent.putExtra("optionalDirections", finalExactDirections);
                         alertIntent.putExtra("isUrgent", cbExpressDelivery.isChecked());
                         sendBroadcast(alertIntent);
-
-                        if (currentUser != null && !TextUtils.isEmpty(finalExactDirections)) {
-                            Map<String, Object> dirUpdates = new HashMap<>();
-                            dirUpdates.put("locationNotes", finalExactDirections);
-                            dirUpdates.put("optionalDirections", finalExactDirections);
-                            FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid()).update(dirUpdates);
-                        }
 
                         // Week 10 Component: ContentProvider record insertion
                         try {

@@ -74,6 +74,16 @@
             android:name=".activities.ProfileActivity"
             android:exported="false" />
 
+        <!-- Dedicated Buyer Profile & Delivery Location Activity -->
+        <activity
+            android:name=".activities.BuyerProfileActivity"
+            android:exported="false" />
+
+        <!-- Dedicated Buyer Order History & Delivery Ledger Activity -->
+        <activity
+            android:name=".activities.BuyerOrderHistoryActivity"
+            android:exported="false" />
+
         <!-- Background Location Broadcast Service -->
         <service
             android:name=".services.LocationBroadcastService"
