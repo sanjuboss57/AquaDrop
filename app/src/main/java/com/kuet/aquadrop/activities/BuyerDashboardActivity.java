@@ -147,10 +147,16 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private TextView tvOrderTotalPrice;
     private MaterialButton btnPlaceOrder;
 
-    // Orders RecyclerView
-    private RecyclerView rvBuyerOrders;
-    private TextView tvNoOrdersPlaceholder;
-    private BuyerOrderAdapter orderAdapter;
+    // Active & Past Orders Partition Views & Adapters
+    private RecyclerView rvActiveOrders;
+    private TextView tvNoActiveOrdersPlaceholder;
+    private TextView tvActiveOrdersCountBadge;
+    private BuyerOrderAdapter activeOrderAdapter;
+
+    private RecyclerView rvPastOrders;
+    private TextView tvNoPastOrdersPlaceholder;
+    private TextView tvPastOrdersCountBadge;
+    private BuyerOrderAdapter pastOrderAdapter;
 
     // State Variables
     private User currentUser;
@@ -263,8 +269,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         tvOrderTotalPrice = findViewById(R.id.tvOrderTotalPrice);
         btnPlaceOrder = findViewById(R.id.btnPlaceOrder);
 
-        rvBuyerOrders = findViewById(R.id.rvBuyerOrders);
-        tvNoOrdersPlaceholder = findViewById(R.id.tvNoOrdersPlaceholder);
+        rvActiveOrders = findViewById(R.id.rvActiveOrders);
+        tvNoActiveOrdersPlaceholder = findViewById(R.id.tvNoActiveOrdersPlaceholder);
+        tvActiveOrdersCountBadge = findViewById(R.id.tvActiveOrdersCountBadge);
+
+        rvPastOrders = findViewById(R.id.rvPastOrders);
+        tvNoPastOrdersPlaceholder = findViewById(R.id.tvNoPastOrdersPlaceholder);
+        tvPastOrdersCountBadge = findViewById(R.id.tvPastOrdersCountBadge);
     }
 
     private void setupOrderCounters() {
@@ -353,9 +364,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     }
 
     private void setupRecyclerView() {
-        rvBuyerOrders.setLayoutManager(new LinearLayoutManager(this));
-        orderAdapter = new BuyerOrderAdapter(this);
-        rvBuyerOrders.setAdapter(orderAdapter);
+        rvActiveOrders.setLayoutManager(new LinearLayoutManager(this));
+        activeOrderAdapter = new BuyerOrderAdapter(this);
+        rvActiveOrders.setAdapter(activeOrderAdapter);
+
+        rvPastOrders.setLayoutManager(new LinearLayoutManager(this));
+        pastOrderAdapter = new BuyerOrderAdapter(this);
+        rvPastOrders.setAdapter(pastOrderAdapter);
     }
 
     private void setupListeners() {
@@ -510,8 +525,24 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     }
 
     private void refreshBuyerOrdersUi() {
-        List<WaterOrder> orders = new ArrayList<>(buyerOrdersMap.values());
-        Collections.sort(orders, new Comparator<WaterOrder>() {
+        List<WaterOrder> all = new ArrayList<>(buyerOrdersMap.values());
+        List<WaterOrder> activeOrders = new ArrayList<>();
+        List<WaterOrder> pastOrders = new ArrayList<>();
+
+        for (WaterOrder order : all) {
+            if (order == null) continue;
+            String status = order.getStatus();
+            boolean isPast = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
+                    || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
+            if (isPast) {
+                pastOrders.add(order);
+            } else {
+                activeOrders.add(order);
+            }
+        }
+
+        // Sort active orders: Urgent (isUrgent == true) first, then newest timestamp
+        Collections.sort(activeOrders, new Comparator<WaterOrder>() {
             @Override
             public int compare(WaterOrder o1, WaterOrder o2) {
                 if (o1 == null && o2 == null) return 0;
@@ -524,15 +555,50 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
             }
         });
 
-        orderAdapter.setOrders(orders);
-        orderAdapter.notifyDataSetChanged();
+        // Sort past orders: Newest delivered / finished timestamp first
+        Collections.sort(pastOrders, new Comparator<WaterOrder>() {
+            @Override
+            public int compare(WaterOrder o1, WaterOrder o2) {
+                if (o1 == null && o2 == null) return 0;
+                if (o1 == null) return 1;
+                if (o2 == null) return -1;
+                long t1 = o1.getDeliveredTimestamp() > 0 ? o1.getDeliveredTimestamp() : o1.getTimestamp();
+                long t2 = o2.getDeliveredTimestamp() > 0 ? o2.getDeliveredTimestamp() : o2.getTimestamp();
+                return Long.compare(t2, t1);
+            }
+        });
 
-        if (orders.isEmpty()) {
-            tvNoOrdersPlaceholder.setVisibility(View.VISIBLE);
-            rvBuyerOrders.setVisibility(View.GONE);
+        if (activeOrderAdapter != null) {
+            activeOrderAdapter.setOrders(activeOrders);
+            activeOrderAdapter.notifyDataSetChanged();
+        }
+
+        if (pastOrderAdapter != null) {
+            pastOrderAdapter.setOrders(pastOrders);
+            pastOrderAdapter.notifyDataSetChanged();
+        }
+
+        if (tvActiveOrdersCountBadge != null) {
+            tvActiveOrdersCountBadge.setText(String.format(Locale.getDefault(), "%d Active", activeOrders.size()));
+        }
+        if (tvPastOrdersCountBadge != null) {
+            tvPastOrdersCountBadge.setText(String.format(Locale.getDefault(), "%d Completed", pastOrders.size()));
+        }
+
+        if (activeOrders.isEmpty()) {
+            if (tvNoActiveOrdersPlaceholder != null) tvNoActiveOrdersPlaceholder.setVisibility(View.VISIBLE);
+            if (rvActiveOrders != null) rvActiveOrders.setVisibility(View.GONE);
         } else {
-            tvNoOrdersPlaceholder.setVisibility(View.GONE);
-            rvBuyerOrders.setVisibility(View.VISIBLE);
+            if (tvNoActiveOrdersPlaceholder != null) tvNoActiveOrdersPlaceholder.setVisibility(View.GONE);
+            if (rvActiveOrders != null) rvActiveOrders.setVisibility(View.VISIBLE);
+        }
+
+        if (pastOrders.isEmpty()) {
+            if (tvNoPastOrdersPlaceholder != null) tvNoPastOrdersPlaceholder.setVisibility(View.VISIBLE);
+            if (rvPastOrders != null) rvPastOrders.setVisibility(View.GONE);
+        } else {
+            if (tvNoPastOrdersPlaceholder != null) tvNoPastOrdersPlaceholder.setVisibility(View.GONE);
+            if (rvPastOrders != null) rvPastOrders.setVisibility(View.VISIBLE);
         }
     }
 
