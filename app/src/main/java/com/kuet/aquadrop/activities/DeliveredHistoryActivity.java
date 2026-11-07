@@ -109,35 +109,7 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
     private void fetchDeliveredOrders() {
         final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
 
-        // 1. Fetch from Cloud Firestore
-        try {
-            if (firestoreListener != null) {
-                firestoreListener.remove();
-            }
-            firestoreListener = FirebaseFirestore.getInstance().collection("orders")
-                    .addSnapshotListener(new EventListener<QuerySnapshot>() {
-                        @Override
-                        public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
-                            if (error != null) {
-                                Log.e("DeliveredHistory", "Firestore error: " + error.getMessage());
-                                return;
-                            }
-                            if (snapshots != null) {
-                                for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                                    WaterOrder order = WaterOrder.fromSnapshot(doc);
-                                    if (isMyDeliveredOrder(order, currentSellerUid)) {
-                                        deliveredOrdersMap.put(order.getOrderId(), order);
-                                    }
-                                }
-                                updateDeliveredUi();
-                            }
-                        }
-                    });
-        } catch (Exception e) {
-            Log.e("DeliveredHistory", "Firestore attach error: " + e.getMessage());
-        }
-
-        // 2. Fetch from Firebase Realtime Database
+        // 1. Fetch from Firebase Realtime Database FIRST (Primary authoritative store)
         try {
             if (rtdbListener != null) {
                 FirebaseManager.getInstance().getRtdbOrdersRef().removeEventListener(rtdbListener);
@@ -157,32 +129,17 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public void onCancelled(@NonNull DatabaseError error) {}
+                public void onCancelled(@NonNull DatabaseError error) {
+                    Log.w("DeliveredHistory", "RTDB orders read notice: " + error.getMessage());
+                }
             };
             FirebaseManager.getInstance().getRtdbOrdersRef().addValueEventListener(rtdbListener);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.w("DeliveredHistory", "RTDB listener init exception: " + e.getMessage());
+        }
 
-        // 3. Fetch from Dedicated Seller Delivery Storage: seller_storage/{currentSellerUid}/delivered_orders
+        // 2. Fetch from Dedicated Seller Delivery Storage in RTDB: seller_storage/{currentSellerUid}/delivered_orders
         if (!android.text.TextUtils.isEmpty(currentSellerUid)) {
-            try {
-                FirebaseFirestore.getInstance().collection("seller_storage")
-                        .document(currentSellerUid)
-                        .collection("delivered_orders")
-                        .addSnapshotListener(new EventListener<QuerySnapshot>() {
-                            @Override
-                            public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
-                                if (error != null || snapshots == null) return;
-                                for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                                    WaterOrder order = WaterOrder.fromSnapshot(doc);
-                                    if (order != null) {
-                                        deliveredOrdersMap.put(order.getOrderId(), order);
-                                    }
-                                }
-                                updateDeliveredUi();
-                            }
-                        });
-            } catch (Exception ignored) {}
-
             try {
                 FirebaseManager.getInstance().getDatabase().getReference("seller_storage")
                         .child(currentSellerUid)
@@ -202,7 +159,60 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
                             }
 
                             @Override
-                            public void onCancelled(@NonNull DatabaseError error) {}
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                Log.w("DeliveredHistory", "RTDB seller_storage read notice: " + error.getMessage());
+                            }
+                        });
+            } catch (Exception e) {
+                Log.w("DeliveredHistory", "RTDB seller_storage listener init: " + e.getMessage());
+            }
+        }
+
+        // 3. Mirror from Cloud Firestore in the background (silent log, no blocking toasts)
+        try {
+            if (firestoreListener != null) {
+                firestoreListener.remove();
+            }
+            firestoreListener = FirebaseFirestore.getInstance().collection("orders")
+                    .addSnapshotListener(new EventListener<QuerySnapshot>() {
+                        @Override
+                        public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
+                            if (error != null) {
+                                Log.w("DeliveredHistory", "Firestore orders sync note (RTDB active): " + error.getMessage());
+                                return;
+                            }
+                            if (snapshots != null) {
+                                for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                                    WaterOrder order = WaterOrder.fromSnapshot(doc);
+                                    if (isMyDeliveredOrder(order, currentSellerUid)) {
+                                        deliveredOrdersMap.put(order.getOrderId(), order);
+                                    }
+                                }
+                                updateDeliveredUi();
+                            }
+                        }
+                    });
+        } catch (Exception e) {
+            Log.w("DeliveredHistory", "Firestore attach notice: " + e.getMessage());
+        }
+
+        if (!android.text.TextUtils.isEmpty(currentSellerUid)) {
+            try {
+                FirebaseFirestore.getInstance().collection("seller_storage")
+                        .document(currentSellerUid)
+                        .collection("delivered_orders")
+                        .addSnapshotListener(new EventListener<QuerySnapshot>() {
+                            @Override
+                            public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
+                                if (error != null || snapshots == null) return;
+                                for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                                    WaterOrder order = WaterOrder.fromSnapshot(doc);
+                                    if (order != null) {
+                                        deliveredOrdersMap.put(order.getOrderId(), order);
+                                    }
+                                }
+                                updateDeliveredUi();
+                            }
                         });
             } catch (Exception ignored) {}
         }

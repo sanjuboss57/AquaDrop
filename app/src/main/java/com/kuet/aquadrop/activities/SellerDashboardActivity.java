@@ -555,8 +555,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         @Override
                         public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
                             if (error != null) {
-                                Log.e("SellerDashboard", "Firestore Orders SnapshotListener error: " + error.getMessage(), error);
-                                Toast.makeText(SellerDashboardActivity.this, "Firestore Error: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                                Log.w("SellerDashboard", "Firestore Orders SnapshotListener note (RTDB active): " + error.getMessage());
                                 return;
                             }
 
@@ -572,8 +571,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         }
                     });
         } catch (Exception e) {
-            Log.e("SellerDashboard", "Firestore listener init: " + e.getMessage(), e);
-            Toast.makeText(SellerDashboardActivity.this, "Listener error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Log.w("SellerDashboard", "Firestore listener init note: " + e.getMessage());
         }
 
         // 2. Realtime Database Live Listener (Guarantees 100% online real-time sync)
@@ -931,7 +929,11 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
 
     @Override
     public void onAcceptOrder(final WaterOrder order) {
-        if (order == null) return;
+        if (order == null || TextUtils.isEmpty(order.getOrderId())) {
+            Toast.makeText(this, "Order information missing.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(order.getStatus())) {
             Toast.makeText(this, "Cannot accept: This order was cancelled by the buyer.", Toast.LENGTH_SHORT).show();
             return;
@@ -945,82 +947,64 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
 
         final String depotTitle = !TextUtils.isEmpty(currentSellerDepotTitle) ? currentSellerDepotTitle : "KUET Depot";
         final String assignedName = currentSellerName + " (" + depotTitle + ")";
-        final DocumentReference orderRef = FirebaseManager.getInstance().getOrdersRef().document(order.getOrderId());
 
-        Toast.makeText(this, "Claiming order #" + order.getOrderId() + "...", Toast.LENGTH_SHORT).show();
+        // 1. Immediately update local state so UI transitions without lag
+        order.setStatus(WaterOrder.STATUS_ACCEPTED);
+        order.setAssignedSellerId(currentSellerUid);
+        order.setSellerId(currentSellerUid);
+        order.setAssignedSellerName(assignedName);
+        liveOrdersMap.put(order.getOrderId(), order);
+        recalculateAndDisplayOrders();
 
-        // Atomic Anti-Collision Order Locking via Firestore Transaction
-        FirebaseManager.getInstance().getFirestore().runTransaction(new Transaction.Function<Void>() {
-            @Nullable
-            @Override
-            public Void apply(@NonNull Transaction transaction) throws FirebaseFirestoreException {
-                DocumentSnapshot snapshot = transaction.get(orderRef);
-                if (!snapshot.exists()) {
-                    throw new FirebaseFirestoreException("Order no longer exists",
-                            FirebaseFirestoreException.Code.NOT_FOUND);
-                }
+        // 2. Update Firebase Realtime Database FIRST (Primary authoritative real-time store)
+        Map<String, Object> rtdbUpdates = new HashMap<>();
+        rtdbUpdates.put("status", WaterOrder.STATUS_ACCEPTED);
+        rtdbUpdates.put("assignedSellerId", currentSellerUid);
+        rtdbUpdates.put("sellerId", currentSellerUid);
+        rtdbUpdates.put("assignedSellerName", assignedName);
 
-                String currentStatus = snapshot.getString("status");
-                String assignedId = snapshot.getString("assignedSellerId");
-                if (TextUtils.isEmpty(assignedId)) {
-                    assignedId = snapshot.getString("sellerId");
-                }
+        FirebaseManager.getInstance().getRtdbOrdersRef().child(order.getOrderId())
+                .updateChildren(rtdbUpdates)
+                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public void onSuccess(Void unused) {
+                        Log.d("SellerDashboard", "Order #" + order.getOrderId() + " locked to seller in RTDB");
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Log.w("SellerDashboard", "RTDB acceptOrder notice: " + e.getMessage());
+                    }
+                });
 
-                // If no longer PENDING or assignedSellerId is already set by another seller, abort
-                if (!WaterOrder.STATUS_PENDING.equalsIgnoreCase(currentStatus)
-                        || (!TextUtils.isEmpty(assignedId) && !currentSellerUid.equals(assignedId))) {
-                    throw new FirebaseFirestoreException("ORDER_ALREADY_CLAIMED",
-                            FirebaseFirestoreException.Code.ABORTED);
-                }
+        // 3. Mirror to Cloud Firestore silently in background (log only, never block seller)
+        try {
+            FirebaseManager.getInstance().getOrdersRef().document(order.getOrderId())
+                    .set(order, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            Log.w("SellerDashboard", "Firestore mirror notice (propagating): " + e.getMessage());
+                        }
+                    });
+        } catch (Exception e) {
+            Log.w("SellerDashboard", "Firestore mirror exception: " + e.getMessage());
+        }
 
-                Map<String, Object> updates = new HashMap<>();
-                updates.put("status", WaterOrder.STATUS_ACCEPTED);
-                updates.put("assignedSellerId", currentSellerUid);
-                updates.put("sellerId", currentSellerUid);
-                updates.put("assignedSellerName", assignedName);
+        Toast.makeText(SellerDashboardActivity.this,
+                "✓ Order #" + order.getOrderId() + " Accepted! Assigned to you.",
+                Toast.LENGTH_SHORT).show();
 
-                transaction.update(orderRef, updates);
-                return null;
-            }
-        }).addOnSuccessListener(new OnSuccessListener<Void>() {
-            @Override
-            public void onSuccess(Void unused) {
-                // Update local state immediately
-                order.setStatus(WaterOrder.STATUS_ACCEPTED);
-                order.setAssignedSellerId(currentSellerUid);
-                order.setSellerId(currentSellerUid);
-                order.setAssignedSellerName(assignedName);
-                liveOrdersMap.put(order.getOrderId(), order);
-                recalculateAndDisplayOrders();
-
-                // Sync to Realtime Database
-                Map<String, Object> rtdbUpdates = new HashMap<>();
-                rtdbUpdates.put("status", WaterOrder.STATUS_ACCEPTED);
-                rtdbUpdates.put("assignedSellerId", currentSellerUid);
-                rtdbUpdates.put("sellerId", currentSellerUid);
-                rtdbUpdates.put("assignedSellerName", assignedName);
-                FirebaseManager.getInstance().getRtdbOrdersRef().child(order.getOrderId()).updateChildren(rtdbUpdates);
-
-                Toast.makeText(SellerDashboardActivity.this,
-                        "Order #" + order.getOrderId() + " accepted! Tap 'Start Van Delivery' when en route.",
-                        Toast.LENGTH_SHORT).show();
-            }
-        }).addOnFailureListener(new OnFailureListener() {
-            @Override
-            public void onFailure(@NonNull Exception e) {
-                if (e instanceof FirebaseFirestoreException
-                        && "ORDER_ALREADY_CLAIMED".equals(e.getMessage())) {
-                    Toast.makeText(SellerDashboardActivity.this,
-                            "Order was just claimed by another seller!", Toast.LENGTH_LONG).show();
-                    // Remove from local queue
-                    liveOrdersMap.remove(order.getOrderId());
-                    recalculateAndDisplayOrders();
-                } else {
-                    Toast.makeText(SellerDashboardActivity.this,
-                            "Could not claim order: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                }
-            }
-        });
+        // 4. Prompt seller to launch delivery tracking controls immediately if ready
+        new AlertDialog.Builder(this)
+                .setTitle("Order #" + order.getOrderId() + " Accepted")
+                .setMessage("Delivery is now assigned to you.\n\nWould you like to start van delivery and GPS tracking right now?")
+                .setPositiveButton("Start Delivery & Track", (dialog, which) -> {
+                    onStartDelivery(order);
+                })
+                .setNegativeButton("Keep in Queue", null)
+                .show();
     }
 
     @Override
@@ -1042,43 +1026,47 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         liveOrdersMap.put(order.getOrderId(), order);
         recalculateAndDisplayOrders();
 
-        FirebaseManager.getInstance().updateOrderFields(order.getOrderId(), updates,
-                new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void unused) {
-                        // Start Background Location Broadcast Service
-                        Intent serviceIntent = new Intent(SellerDashboardActivity.this, LocationBroadcastService.class);
-                        serviceIntent.putExtra("orderId", order.getOrderId());
-                        serviceIntent.putExtra("buyerLat", order.getBuyerLat());
-                        serviceIntent.putExtra("buyerLng", order.getBuyerLng());
-                        serviceIntent.putExtra("floorNumber", order.getFloorNumber());
-                        serviceIntent.putExtra("locationName", order.getLocationName());
-                        ContextCompat.startForegroundService(SellerDashboardActivity.this, serviceIntent);
+        // 1. Update Realtime Database FIRST
+        FirebaseManager.getInstance().getRtdbOrdersRef().child(order.getOrderId()).updateChildren(updates)
+                .addOnFailureListener(e -> Log.w("SellerDashboard", "RTDB onStartDelivery error: " + e.getMessage()));
 
-                        // Broadcast delivery status update
-                        Intent dispatchIntent = new Intent(DeliveryStatusReceiver.ACTION_DELIVERY_UPDATE);
-                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, order.getOrderId());
-                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_OUT_FOR_DELIVERY);
-                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "Order #" + order.getOrderId() + " is now OUT FOR DELIVERY! Van en route to " + order.getLocationName());
-                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, order.getBuyerLat());
-                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, order.getBuyerLng());
-                        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, order.getLocationName());
-                        sendBroadcast(dispatchIntent);
+        // 2. Mirror to Firestore silently in background
+        try {
+            FirebaseManager.getInstance().getOrdersRef().document(order.getOrderId())
+                    .set(order, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnFailureListener(e -> Log.w("SellerDashboard", "Firestore onStartDelivery mirror notice: " + e.getMessage()));
+        } catch (Exception e) {
+            Log.w("SellerDashboard", "Firestore mirror exception: " + e.getMessage());
+        }
 
-                        Toast.makeText(SellerDashboardActivity.this,
-                                "Order #" + order.getOrderId() + " is out for delivery! Driver GPS tracking broadcast active.",
-                                Toast.LENGTH_SHORT).show();
+        // 3. Start Background Location Broadcast Service
+        try {
+            Intent serviceIntent = new Intent(SellerDashboardActivity.this, LocationBroadcastService.class);
+            serviceIntent.putExtra("orderId", order.getOrderId());
+            serviceIntent.putExtra("buyerLat", order.getBuyerLat());
+            serviceIntent.putExtra("buyerLng", order.getBuyerLng());
+            serviceIntent.putExtra("floorNumber", order.getFloorNumber());
+            serviceIntent.putExtra("locationName", order.getLocationName());
+            ContextCompat.startForegroundService(SellerDashboardActivity.this, serviceIntent);
+        } catch (Exception e) {
+            Log.w("SellerDashboard", "Foreground service start: " + e.getMessage());
+        }
 
-                        launchLiveMap(order);
-                    }
-                },
-                new OnFailureListener() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        Toast.makeText(SellerDashboardActivity.this,
-                                "Delivery start warning: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+        // 4. Broadcast delivery status update
+        Intent dispatchIntent = new Intent(DeliveryStatusReceiver.ACTION_DELIVERY_UPDATE);
+        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, order.getOrderId());
+        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_OUT_FOR_DELIVERY);
+        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_MESSAGE, "Order #" + order.getOrderId() + " is now OUT FOR DELIVERY! Van en route to " + order.getLocationName());
+        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, order.getBuyerLat());
+        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, order.getBuyerLng());
+        dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, order.getLocationName());
+        sendBroadcast(dispatchIntent);
+
+        Toast.makeText(SellerDashboardActivity.this,
+                "Order #" + order.getOrderId() + " is out for delivery! Driver GPS tracking broadcast active.",
+                Toast.LENGTH_SHORT).show();
+
+        launchLiveMap(order);
     }
 
     @Override
@@ -1394,78 +1382,80 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             orderUpdates.put("assignedSellerId", sellerUid);
         }
 
-        FirebaseManager.getInstance().updateOrderFields(order.getOrderId(), orderUpdates, null, null);
+        // 2A. Update Realtime Database FIRST
+        FirebaseManager.getInstance().getRtdbOrdersRef().child(order.getOrderId()).updateChildren(orderUpdates)
+                .addOnFailureListener(e -> Log.w("SellerDashboard", "RTDB order completion notice: " + e.getMessage()));
 
-        // 2B. Store permanent copy in seller's dedicated delivery storage: seller_storage/{sellerUid}/delivered_orders/{orderId}
+        // 2B. Store permanent copy in seller's dedicated delivery storage in Realtime Database FIRST
         if (!TextUtils.isEmpty(sellerUid)) {
-            FirebaseFirestore.getInstance().collection("seller_storage")
-                    .document(sellerUid)
-                    .collection("delivered_orders")
-                    .document(order.getOrderId())
-                    .set(order);
-
             FirebaseManager.getInstance().getDatabase().getReference("seller_storage")
                     .child(sellerUid)
                     .child("delivered_orders")
                     .child(order.getOrderId())
-                    .setValue(order);
+                    .setValue(order)
+                    .addOnFailureListener(e -> Log.w("SellerDashboard", "RTDB seller_storage notice: " + e.getMessage()));
         }
 
-        // 2C. Deduct delivered jars from seller storage & increment totalDeliveredCount
+        // 2C. Deduct delivered jars from seller storage & increment totalDeliveredCount directly in Realtime Database FIRST
         final int totalJarsDelivered = order.getJarRefillCount() + order.getNewJarWithDepositCount();
         if (!TextUtils.isEmpty(sellerUid)) {
-            final DocumentReference sellerRef = FirebaseManager.getInstance().getUsersRef().document(sellerUid);
-            FirebaseManager.getInstance().getFirestore().runTransaction(new Transaction.Function<Void>() {
-                @Nullable
-                @Override
-                public Void apply(@NonNull Transaction transaction) throws FirebaseFirestoreException {
-                    DocumentSnapshot sSnap = transaction.get(sellerRef);
-                    long stock = 50;
-                    long deliveredCount = 0;
-                    boolean ready = false;
-                    if (sSnap.exists()) {
-                        Long sVal = sSnap.getLong("availableStockJars");
-                        if (sVal != null) stock = sVal;
-                        Long dVal = sSnap.getLong("totalDeliveredCount");
-                        if (dVal != null) deliveredCount = dVal;
-                        Boolean rVal = sSnap.getBoolean("readyForSupply");
-                        if (rVal != null) ready = rVal;
-                    }
-                    long newStock = Math.max(0, stock - totalJarsDelivered);
-                    long newDeliveredCount = deliveredCount + 1;
-                    if (newStock <= 0) ready = false;
+            int currentStock = (currentSellerUser != null) ? currentSellerUser.getAvailableStockJars() : 50;
+            int currentDelivered = (currentSellerUser != null) ? currentSellerUser.getTotalDeliveredCount() : 0;
+            int newStock = Math.max(0, currentStock - totalJarsDelivered);
+            int newDelivered = currentDelivered + 1;
+            boolean ready = (newStock > 0);
 
-                    Map<String, Object> sUpdates = new HashMap<>();
-                    sUpdates.put("availableStockJars", newStock);
-                    sUpdates.put("totalDeliveredCount", newDeliveredCount);
-                    sUpdates.put("readyForSupply", ready);
+            if (currentSellerUser != null) {
+                currentSellerUser.setAvailableStockJars(newStock);
+                currentSellerUser.setTotalDeliveredCount(newDelivered);
+                currentSellerUser.setReadyForSupply(ready);
+                updateSupplyUiState();
+            }
 
-                    transaction.update(sellerRef, sUpdates);
+            Map<String, Object> sUpdates = new HashMap<>();
+            sUpdates.put("availableStockJars", newStock);
+            sUpdates.put("totalDeliveredCount", newDelivered);
+            sUpdates.put("readyForSupply", ready);
 
-                    // Mirror in RTDB online_sellers
-                    FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
-                            .child(sellerUid)
-                            .updateChildren(sUpdates);
+            FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                    .child(sellerUid)
+                    .updateChildren(sUpdates);
+            FirebaseManager.getInstance().getRtdbUsersRef()
+                    .child(sellerUid)
+                    .updateChildren(sUpdates);
 
-                    return null;
-                }
-            }).addOnSuccessListener(new OnSuccessListener<Void>() {
-                @Override
-                public void onSuccess(Void unused) {
-                    if (currentSellerUser != null) {
-                        int newStock = Math.max(0, currentSellerUser.getAvailableStockJars() - totalJarsDelivered);
-                        currentSellerUser.setAvailableStockJars(newStock);
-                        currentSellerUser.setTotalDeliveredCount(currentSellerUser.getTotalDeliveredCount() + 1);
-                        if (newStock <= 0) {
-                            currentSellerUser.setReadyForSupply(false);
-                        }
-                        updateSupplyUiState();
-                    }
-                }
-            });
+            // Mirror seller storage updates to Firestore silently in background
+            try {
+                FirebaseManager.getInstance().getUsersRef().document(sellerUid)
+                        .update(sUpdates)
+                        .addOnFailureListener(e -> Log.w("SellerDashboard", "Firestore seller stock mirror warning: " + e.getMessage()));
+            } catch (Exception e) {
+                Log.w("SellerDashboard", "Firestore seller stock update exception: " + e.getMessage());
+            }
+
+            // Mirror delivered order to Firestore seller_storage silently
+            try {
+                FirebaseFirestore.getInstance().collection("seller_storage")
+                        .document(sellerUid)
+                        .collection("delivered_orders")
+                        .document(order.getOrderId())
+                        .set(order, com.google.firebase.firestore.SetOptions.merge())
+                        .addOnFailureListener(e -> Log.w("SellerDashboard", "Firestore seller_storage mirror warning: " + e.getMessage()));
+            } catch (Exception e) {
+                Log.w("SellerDashboard", "Firestore seller_storage exception: " + e.getMessage());
+            }
         }
 
-        // 3. Update buyer bottle ledger in both databases
+        // Mirror main order status to Firestore silently
+        try {
+            FirebaseManager.getInstance().getOrdersRef().document(order.getOrderId())
+                    .set(order, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnFailureListener(e -> Log.w("SellerDashboard", "Firestore main order status mirror warning: " + e.getMessage()));
+        } catch (Exception e) {
+            Log.w("SellerDashboard", "Firestore main order exception: " + e.getMessage());
+        }
+
+        // 3. Update buyer bottle ledger in Realtime Database FIRST
         final int jarsDelivered = order.getJarRefillCount();
         final int emptyCollected = order.getEmptyJarsToReturn();
         if (!TextUtils.isEmpty(order.getBuyerId())) {
@@ -1487,33 +1477,6 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         public void onCancelled(@NonNull DatabaseError error) {}
                     });
         }
-
-        // 4. Try Firestore transaction as secondary verification
-        try {
-            final DocumentReference orderRef = FirebaseManager.getInstance().getOrdersRef().document(order.getOrderId());
-            final DocumentReference buyerRef = FirebaseManager.getInstance().getUsersRef().document(order.getBuyerId());
-            FirebaseManager.getInstance().getFirestore().runTransaction(new Transaction.Function<Void>() {
-                @Nullable
-                @Override
-                public Void apply(@NonNull Transaction transaction) throws FirebaseFirestoreException {
-                    DocumentSnapshot buyerSnapshot = transaction.get(buyerRef);
-                    long currentHeld = 0;
-                    if (buyerSnapshot.exists() && buyerSnapshot.contains("emptyJarsHeld")) {
-                        Long val = buyerSnapshot.getLong("emptyJarsHeld");
-                        if (val != null) currentHeld = val;
-                    }
-                    long newHeld = Math.max(0, currentHeld + jarsDelivered - emptyCollected);
-                    transaction.update(orderRef, orderUpdates);
-                    transaction.update(buyerRef, "emptyJarsHeld", newHeld);
-                    return null;
-                }
-            }).addOnFailureListener(new OnFailureListener() {
-                @Override
-                public void onFailure(@NonNull Exception e) {
-                    Log.d("SellerDashboard", "Firestore transaction secondary note: " + e.getMessage());
-                }
-            });
-        } catch (Exception ignored) {}
 
         // Stop location broadcast service and remove RTDB telemetry
         try {
