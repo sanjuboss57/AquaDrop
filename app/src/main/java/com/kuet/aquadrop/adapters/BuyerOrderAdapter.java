@@ -116,13 +116,10 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
             }
 
             if (tvItemAssignedSeller != null) {
-                String status = order.getStatus() != null ? order.getStatus() : WaterOrder.STATUS_PENDING;
-                boolean isHandled = WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
-                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status);
                 String sellerName = order.getAssignedSellerName();
-                if (isHandled && !TextUtils.isEmpty(sellerName)) {
+                if (!TextUtils.isEmpty(sellerName)) {
                     tvItemAssignedSeller.setVisibility(View.VISIBLE);
-                    tvItemAssignedSeller.setText("🚚 Handled by: " + sellerName);
+                    tvItemAssignedSeller.setText("🚚 Supplier: " + sellerName);
                 } else {
                     tvItemAssignedSeller.setVisibility(View.GONE);
                 }

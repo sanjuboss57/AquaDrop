@@ -161,6 +161,51 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
             };
             FirebaseManager.getInstance().getRtdbOrdersRef().addValueEventListener(rtdbListener);
         } catch (Exception ignored) {}
+
+        // 3. Fetch from Dedicated Seller Delivery Storage: seller_storage/{currentSellerUid}/delivered_orders
+        if (!android.text.TextUtils.isEmpty(currentSellerUid)) {
+            try {
+                FirebaseFirestore.getInstance().collection("seller_storage")
+                        .document(currentSellerUid)
+                        .collection("delivered_orders")
+                        .addSnapshotListener(new EventListener<QuerySnapshot>() {
+                            @Override
+                            public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
+                                if (error != null || snapshots == null) return;
+                                for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                                    WaterOrder order = WaterOrder.fromSnapshot(doc);
+                                    if (order != null) {
+                                        deliveredOrdersMap.put(order.getOrderId(), order);
+                                    }
+                                }
+                                updateDeliveredUi();
+                            }
+                        });
+            } catch (Exception ignored) {}
+
+            try {
+                FirebaseManager.getInstance().getDatabase().getReference("seller_storage")
+                        .child(currentSellerUid)
+                        .child("delivered_orders")
+                        .addValueEventListener(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                                if (snapshot.exists()) {
+                                    for (DataSnapshot child : snapshot.getChildren()) {
+                                        WaterOrder order = WaterOrder.fromDataSnapshot(child);
+                                        if (order != null) {
+                                            deliveredOrdersMap.put(order.getOrderId(), order);
+                                        }
+                                    }
+                                    updateDeliveredUi();
+                                }
+                            }
+
+                            @Override
+                            public void onCancelled(@NonNull DatabaseError error) {}
+                        });
+            } catch (Exception ignored) {}
+        }
     }
 
     private void updateDeliveredUi() {

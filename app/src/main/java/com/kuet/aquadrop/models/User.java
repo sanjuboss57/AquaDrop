@@ -29,6 +29,9 @@ public class User implements Serializable {
     private String locationNotes; // Optional exact directions or landmark notes
     private String optionalDirections;
     private String depotOrDriverTitle;
+    private boolean readyForSupply = false;
+    private int availableStockJars = 50;
+    private int totalDeliveredCount = 0;
 
     // Required empty constructor for Firestore deserialization
     public User() {
@@ -211,6 +214,30 @@ public class User implements Serializable {
         this.depotOrDriverTitle = depotOrDriverTitle;
     }
 
+    public boolean isReadyForSupply() {
+        return readyForSupply;
+    }
+
+    public void setReadyForSupply(boolean readyForSupply) {
+        this.readyForSupply = readyForSupply;
+    }
+
+    public int getAvailableStockJars() {
+        return availableStockJars;
+    }
+
+    public void setAvailableStockJars(int availableStockJars) {
+        this.availableStockJars = availableStockJars;
+    }
+
+    public int getTotalDeliveredCount() {
+        return totalDeliveredCount;
+    }
+
+    public void setTotalDeliveredCount(int totalDeliveredCount) {
+        this.totalDeliveredCount = totalDeliveredCount;
+    }
+
     public static User fromDataSnapshot(DataSnapshot snapshot) {
         if (snapshot == null || !snapshot.exists()) return null;
         try {
@@ -298,6 +325,28 @@ public class User implements Serializable {
                 Object v = snapshot.child("sellerAuthorized").getValue();
                 if (v instanceof Boolean) u.setSellerAuthorized((Boolean) v);
                 else u.setSellerAuthorized(Boolean.parseBoolean(String.valueOf(v)));
+            }
+
+            if (snapshot.hasChild("readyForSupply") && snapshot.child("readyForSupply").getValue() != null) {
+                Object v = snapshot.child("readyForSupply").getValue();
+                if (v instanceof Boolean) u.setReadyForSupply((Boolean) v);
+                else u.setReadyForSupply(Boolean.parseBoolean(String.valueOf(v)));
+            }
+
+            if (snapshot.hasChild("availableStockJars") && snapshot.child("availableStockJars").getValue() != null) {
+                Object v = snapshot.child("availableStockJars").getValue();
+                if (v instanceof Number) u.setAvailableStockJars(((Number) v).intValue());
+                else {
+                    try { u.setAvailableStockJars(Integer.parseInt(String.valueOf(v))); } catch (Exception ignored) {}
+                }
+            }
+
+            if (snapshot.hasChild("totalDeliveredCount") && snapshot.child("totalDeliveredCount").getValue() != null) {
+                Object v = snapshot.child("totalDeliveredCount").getValue();
+                if (v instanceof Number) u.setTotalDeliveredCount(((Number) v).intValue());
+                else {
+                    try { u.setTotalDeliveredCount(Integer.parseInt(String.valueOf(v))); } catch (Exception ignored) {}
+                }
             }
 
             return u;

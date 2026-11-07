@@ -147,6 +147,16 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     private TextView tvOrderTotalPrice;
     private MaterialButton btnPlaceOrder;
 
+    // Online Suppliers State & Views
+    private Spinner spinnerOnlineSellers;
+    private TextView tvOnlineSellersBadge;
+    private TextView tvNoOnlineSellersWarning;
+    private final List<User> onlineSellersList = new ArrayList<>();
+    private final Map<String, User> liveOnlineSellersMap = new HashMap<>();
+    private User selectedOnlineSeller = null;
+    private ValueEventListener rtdbOnlineSellersListener;
+    private ListenerRegistration firestoreOnlineSellersListener;
+
     // Active & Past Orders Partition Views & Adapters
     private RecyclerView rvActiveOrders;
     private TextView tvNoActiveOrdersPlaceholder;
@@ -269,6 +279,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         tvOrderTotalPrice = findViewById(R.id.tvOrderTotalPrice);
         btnPlaceOrder = findViewById(R.id.btnPlaceOrder);
 
+        spinnerOnlineSellers = findViewById(R.id.spinnerOnlineSellers);
+        tvOnlineSellersBadge = findViewById(R.id.tvOnlineSellersBadge);
+        tvNoOnlineSellersWarning = findViewById(R.id.tvNoOnlineSellersWarning);
+
         rvActiveOrders = findViewById(R.id.rvActiveOrders);
         tvNoActiveOrdersPlaceholder = findViewById(R.id.tvNoActiveOrdersPlaceholder);
         tvActiveOrdersCountBadge = findViewById(R.id.tvActiveOrdersCountBadge);
@@ -390,6 +404,24 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                                 .child("active")
                                 .setValue(false);
                     }
+                }
+            });
+        }
+
+        if (spinnerOnlineSellers != null) {
+            spinnerOnlineSellers.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    if (position >= 0 && position < onlineSellersList.size()) {
+                        selectedOnlineSeller = onlineSellersList.get(position);
+                    } else {
+                        selectedOnlineSeller = null;
+                    }
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                    selectedOnlineSeller = null;
                 }
             });
         }
@@ -788,6 +820,172 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         };
         FirebaseManager.getInstance().getDatabase().getReference("buyer_alerts")
                 .child(uid).addValueEventListener(rtdbGateAlertListener);
+
+        // 5A. Live Online Sellers (Realtime Database: online_sellers)
+        if (rtdbOnlineSellersListener != null) {
+            FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                    .removeEventListener(rtdbOnlineSellersListener);
+        }
+        rtdbOnlineSellersListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Map<String, User> freshMap = new HashMap<>();
+                if (snapshot.exists()) {
+                    for (DataSnapshot child : snapshot.getChildren()) {
+                        Boolean ready = child.child("readyForSupply").getValue(Boolean.class);
+                        if (Boolean.TRUE.equals(ready)) {
+                            String sellerUid = child.child("sellerUid").getValue(String.class);
+                            if (TextUtils.isEmpty(sellerUid)) sellerUid = child.getKey();
+                            String name = child.child("name").getValue(String.class);
+                            String depot = child.child("depotOrDriverTitle").getValue(String.class);
+                            Integer stock = child.child("availableStockJars").getValue(Integer.class);
+                            if (stock == null) stock = 50;
+
+                            if (stock > 0 && !TextUtils.isEmpty(sellerUid)) {
+                                User seller = new User();
+                                seller.setUid(sellerUid);
+                                seller.setName(name != null ? name : "Campus Water Supplier");
+                                seller.setDepotOrDriverTitle(depot != null ? depot : "KUET Depot");
+                                seller.setRole(User.ROLE_SELLER);
+                                seller.setReadyForSupply(true);
+                                seller.setAvailableStockJars(stock);
+                                freshMap.put(sellerUid, seller);
+                            }
+                        }
+                    }
+                }
+                updateOnlineSellersFromSource(freshMap, true);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                .addValueEventListener(rtdbOnlineSellersListener);
+
+        // 5B. Live Online Sellers (Firestore fallback: users where role == "SELLER")
+        try {
+            if (firestoreOnlineSellersListener != null) {
+                firestoreOnlineSellersListener.remove();
+            }
+            firestoreOnlineSellersListener = FirebaseManager.getInstance().getUsersRef()
+                    .whereEqualTo("role", User.ROLE_SELLER)
+                    .whereEqualTo("readyForSupply", true)
+                    .addSnapshotListener(new EventListener<QuerySnapshot>() {
+                        @Override
+                        public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
+                            if (error != null || snapshots == null) return;
+                            Map<String, User> fsMap = new HashMap<>();
+                            for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                                User u = doc.toObject(User.class);
+                                if (u != null && u.isReadyForSupply() && u.getAvailableStockJars() > 0) {
+                                    if (TextUtils.isEmpty(u.getUid())) u.setUid(doc.getId());
+                                    fsMap.put(u.getUid(), u);
+                                }
+                            }
+                            updateOnlineSellersFromSource(fsMap, false);
+                        }
+                    });
+        } catch (Exception ignored) {}
+    }
+
+    private synchronized void updateOnlineSellersFromSource(Map<String, User> incomingMap, boolean isRtdb) {
+        if (isRtdb) {
+            liveOnlineSellersMap.clear();
+            if (incomingMap != null) {
+                liveOnlineSellersMap.putAll(incomingMap);
+            }
+        } else {
+            if (incomingMap != null) {
+                for (Map.Entry<String, User> entry : incomingMap.entrySet()) {
+                    liveOnlineSellersMap.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
+        List<User> validSellers = new ArrayList<>();
+        for (User u : liveOnlineSellersMap.values()) {
+            if (u != null && u.isReadyForSupply() && u.getAvailableStockJars() > 0) {
+                validSellers.add(u);
+            }
+        }
+
+        Collections.sort(validSellers, new Comparator<User>() {
+            @Override
+            public int compare(User u1, User u2) {
+                int stockCmp = Integer.compare(u2.getAvailableStockJars(), u1.getAvailableStockJars());
+                if (stockCmp != 0) return stockCmp;
+                String n1 = u1.getName() != null ? u1.getName() : "";
+                String n2 = u2.getName() != null ? u2.getName() : "";
+                return n1.compareToIgnoreCase(n2);
+            }
+        });
+
+        String previousSelectedId = selectedOnlineSeller != null ? selectedOnlineSeller.getUid() : null;
+
+        onlineSellersList.clear();
+        onlineSellersList.addAll(validSellers);
+
+        List<String> displayItems = new ArrayList<>();
+        int selectedIndex = 0;
+
+        if (onlineSellersList.isEmpty()) {
+            selectedOnlineSeller = null;
+            displayItems.add("⚠️ No suppliers currently online");
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                    android.R.layout.simple_spinner_item, displayItems);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            if (spinnerOnlineSellers != null) {
+                spinnerOnlineSellers.setAdapter(adapter);
+                spinnerOnlineSellers.setEnabled(false);
+            }
+
+            if (tvNoOnlineSellersWarning != null) {
+                tvNoOnlineSellersWarning.setVisibility(View.VISIBLE);
+            }
+            if (tvOnlineSellersBadge != null) {
+                tvOnlineSellersBadge.setText("0 Online (Offline)");
+                tvOnlineSellersBadge.setTextColor(Color.parseColor("#D32F2F"));
+            }
+            if (btnPlaceOrder != null) {
+                btnPlaceOrder.setEnabled(false);
+                btnPlaceOrder.setText("No Supplier Online");
+            }
+        } else {
+            for (int i = 0; i < onlineSellersList.size(); i++) {
+                User s = onlineSellersList.get(i);
+                String depot = !TextUtils.isEmpty(s.getDepotOrDriverTitle()) ? s.getDepotOrDriverTitle() : "Campus Depot";
+                displayItems.add(String.format(Locale.getDefault(), "🟢 %s (%s) — %d Jars in Stock",
+                        s.getName(), depot, s.getAvailableStockJars()));
+
+                if (previousSelectedId != null && previousSelectedId.equals(s.getUid())) {
+                    selectedIndex = i;
+                }
+            }
+
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                    android.R.layout.simple_spinner_item, displayItems);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            if (spinnerOnlineSellers != null) {
+                spinnerOnlineSellers.setAdapter(adapter);
+                spinnerOnlineSellers.setEnabled(true);
+                spinnerOnlineSellers.setSelection(selectedIndex);
+            }
+            selectedOnlineSeller = onlineSellersList.get(selectedIndex);
+
+            if (tvNoOnlineSellersWarning != null) {
+                tvNoOnlineSellersWarning.setVisibility(View.GONE);
+            }
+            if (tvOnlineSellersBadge != null) {
+                tvOnlineSellersBadge.setText(String.format(Locale.getDefault(), "%d Supplier%s Online",
+                        onlineSellersList.size(), onlineSellersList.size() > 1 ? "s" : ""));
+                tvOnlineSellersBadge.setTextColor(Color.parseColor("#2E7D32"));
+            }
+            if (btnPlaceOrder != null) {
+                btnPlaceOrder.setEnabled(true);
+                btnPlaceOrder.setText("Place Water Order");
+            }
+        }
     }
 
     private void triggerGateArrivalNotification(String locationName, String message) {
@@ -1001,6 +1199,25 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
             return;
         }
 
+        if (selectedOnlineSeller == null) {
+            Toast.makeText(this, "No supplier is currently online. Please wait for a supplier to go online.", Toast.LENGTH_LONG).show();
+            if (btnPlaceOrder != null) btnPlaceOrder.setEnabled(false);
+            return;
+        }
+
+        if (refillJarCount > selectedOnlineSeller.getAvailableStockJars()) {
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Insufficient Supplier Stock")
+                    .setMessage(String.format(Locale.getDefault(),
+                            "Supplier \"%s\" currently only has %d jar(s) in delivery stock.\n\nYou requested %d jar(s). Please reduce quantity or choose another online supplier.",
+                            selectedOnlineSeller.getName(),
+                            selectedOnlineSeller.getAvailableStockJars(),
+                            refillJarCount))
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+
         final boolean isBkash = rbBkash.isChecked();
         final String bkashTrxId = etBkashTrxId.getText() != null ? etBkashTrxId.getText().toString().trim() : "";
 
@@ -1056,8 +1273,16 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
         newOrder.setLocationNotes(exactLocationNotes);
         newOrder.setOptionalDirections(exactLocationNotes);
-        newOrder.setAssignedSellerId("");
-        newOrder.setAssignedSellerName("");
+
+        final String assignedSellerId = selectedOnlineSeller.getUid();
+        final String depot = !TextUtils.isEmpty(selectedOnlineSeller.getDepotOrDriverTitle())
+                ? selectedOnlineSeller.getDepotOrDriverTitle()
+                : "Campus Depot";
+        final String assignedSellerName = selectedOnlineSeller.getName() + " (" + depot + ")";
+
+        newOrder.setSellerId(assignedSellerId);
+        newOrder.setAssignedSellerId(assignedSellerId);
+        newOrder.setAssignedSellerName(assignedSellerName);
 
         // Add immediately to local buyer map for instantaneous responsiveness
         buyerOrdersMap.put(orderId, newOrder);
@@ -1069,7 +1294,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 new com.google.android.gms.tasks.OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void unused) {
-                        btnPlaceOrder.setEnabled(true);
+                        if (btnPlaceOrder != null) {
+                            btnPlaceOrder.setEnabled(!onlineSellersList.isEmpty());
+                        }
                         Toast.makeText(BuyerDashboardActivity.this, "Order " + orderId + " placed!", Toast.LENGTH_SHORT).show();
 
                         // Week 10 Component: BroadcastReceiver alert intent
@@ -1130,7 +1357,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 new com.google.android.gms.tasks.OnFailureListener() {
                     @Override
                     public void onFailure(Exception e) {
-                        btnPlaceOrder.setEnabled(true);
+                        if (btnPlaceOrder != null) {
+                            btnPlaceOrder.setEnabled(!onlineSellersList.isEmpty());
+                        }
                         Toast.makeText(BuyerDashboardActivity.this, "Order placed locally. Network notice: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                         try {
                             if (!isFinishing() && !isDestroyed()) {
@@ -1349,6 +1578,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 FirebaseManager.getInstance().getDatabase().getReference("buyer_alerts")
                         .child(u.getUid()).removeEventListener(rtdbGateAlertListener);
             }
+        }
+        if (rtdbOnlineSellersListener != null) {
+            FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                    .removeEventListener(rtdbOnlineSellersListener);
+        }
+        if (firestoreOnlineSellersListener != null) {
+            firestoreOnlineSellersListener.remove();
         }
     }
 

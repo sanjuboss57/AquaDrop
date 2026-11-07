@@ -95,6 +95,12 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     private TextView tvEmergencyAlertSubtitle;
     private int lastKnownUrgentCount = -1;
 
+    // Supply & Storage Control Views
+    private com.google.android.material.switchmaterial.SwitchMaterial switchReadyForSupply;
+    private TextView tvSupplyStatusBadge;
+    private TextView tvSellerStorageStock;
+    private MaterialButton btnUpdateStock;
+
     // Dispatch Queue Views
     private TextView tvOrderQueueCount;
     private TextView tvNoSellerOrders;
@@ -165,6 +171,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                                 if (!TextUtils.isEmpty(currentSellerUser.getDepotOrDriverTitle())) {
                                     currentSellerDepotTitle = currentSellerUser.getDepotOrDriverTitle();
                                 }
+                                updateSupplyUiState();
                             }
                         }
                     }
@@ -185,6 +192,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                                 if (!TextUtils.isEmpty(u.getDepotOrDriverTitle())) {
                                     currentSellerDepotTitle = u.getDepotOrDriverTitle();
                                 }
+                                updateSupplyUiState();
                             }
                         }
                     }
@@ -192,6 +200,128 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                     @Override
                     public void onCancelled(@NonNull DatabaseError error) {}
                 });
+    }
+
+    private void updateSupplyUiState() {
+        if (currentSellerUser == null) return;
+        boolean isOnline = currentSellerUser.isReadyForSupply();
+        int stock = currentSellerUser.getAvailableStockJars();
+
+        if (switchReadyForSupply != null) {
+            switchReadyForSupply.setChecked(isOnline);
+        }
+        if (tvSupplyStatusBadge != null) {
+            if (isOnline) {
+                tvSupplyStatusBadge.setText("ONLINE - Taking Orders");
+                tvSupplyStatusBadge.setTextColor(Color.parseColor("#2E7D32"));
+                tvSupplyStatusBadge.setBackgroundColor(Color.parseColor("#E8F5E9"));
+            } else {
+                tvSupplyStatusBadge.setText("OFFLINE");
+                tvSupplyStatusBadge.setTextColor(Color.parseColor("#757575"));
+                tvSupplyStatusBadge.setBackgroundColor(Color.parseColor("#EEEEEE"));
+            }
+        }
+        if (tvSellerStorageStock != null) {
+            tvSellerStorageStock.setText(String.format(Locale.getDefault(), "Storage: %d Jars Available", stock));
+        }
+    }
+
+    private void toggleReadyForSupply(final boolean isOnline) {
+        final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        if (TextUtils.isEmpty(sellerUid)) return;
+
+        if (currentSellerUser != null) {
+            currentSellerUser.setReadyForSupply(isOnline);
+        }
+        updateSupplyUiState();
+
+        // 1. Update Firestore users collection
+        FirebaseManager.getInstance().getUsersRef().document(sellerUid)
+                .update("readyForSupply", isOnline)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(SellerDashboardActivity.this,
+                            isOnline ? "🟢 You are now ONLINE! Buyers can order from you." : "⚪ You are now OFFLINE.",
+                            Toast.LENGTH_SHORT).show();
+                });
+
+        // 2. Realtime Database: Mirror in online_sellers for instantaneous buyer discovery
+        final int stock = (currentSellerUser != null) ? currentSellerUser.getAvailableStockJars() : 50;
+        final String depot = !TextUtils.isEmpty(currentSellerDepotTitle) ? currentSellerDepotTitle : "KUET Depot";
+        Map<String, Object> sellerMap = new HashMap<>();
+        sellerMap.put("sellerUid", sellerUid);
+        sellerMap.put("name", currentSellerName);
+        sellerMap.put("depotOrDriverTitle", depot);
+        sellerMap.put("availableStockJars", stock);
+        sellerMap.put("readyForSupply", isOnline);
+        sellerMap.put("timestamp", System.currentTimeMillis());
+
+        FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                .child(sellerUid)
+                .setValue(sellerMap);
+    }
+
+    private void showRestockDialog() {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        int currentStock = (currentSellerUser != null) ? currentSellerUser.getAvailableStockJars() : 50;
+        input.setText(String.valueOf(currentStock));
+        input.setSelection(input.getText().length());
+
+        android.widget.FrameLayout container = new android.widget.FrameLayout(this);
+        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.leftMargin = (int) (24 * getResources().getDisplayMetrics().density);
+        params.rightMargin = (int) (24 * getResources().getDisplayMetrics().density);
+        params.topMargin = (int) (8 * getResources().getDisplayMetrics().density);
+        params.bottomMargin = (int) (8 * getResources().getDisplayMetrics().density);
+        input.setLayoutParams(params);
+        container.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Update Delivery Storage Inventory")
+                .setMessage("Enter the total 20L water jars currently loaded in your van / depot storage:")
+                .setView(container)
+                .setPositiveButton("Save Storage", (dialog, which) -> {
+                    String val = input.getText() != null ? input.getText().toString().trim() : "";
+                    try {
+                        int newStock = Integer.parseInt(val);
+                        if (newStock < 0) newStock = 0;
+                        updateStorageStock(newStock);
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(SellerDashboardActivity.this, "Invalid number", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void updateStorageStock(int newStock) {
+        final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        if (TextUtils.isEmpty(sellerUid)) return;
+
+        if (currentSellerUser != null) {
+            currentSellerUser.setAvailableStockJars(newStock);
+            if (newStock <= 0) {
+                currentSellerUser.setReadyForSupply(false);
+            }
+        }
+        updateSupplyUiState();
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("availableStockJars", newStock);
+        if (newStock <= 0) {
+            updates.put("readyForSupply", false);
+        }
+
+        // 1. Update Firestore
+        FirebaseManager.getInstance().getUsersRef().document(sellerUid).update(updates);
+
+        // 2. Update RTDB online_sellers
+        FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                .child(sellerUid)
+                .updateChildren(updates);
+
+        Toast.makeText(this, "Storage updated: " + newStock + " jars available", Toast.LENGTH_SHORT).show();
     }
 
     private void initViews() {
@@ -210,6 +340,11 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
 
         cardEmergencyNotice = findViewById(R.id.cardEmergencyNotice);
         tvEmergencyAlertSubtitle = findViewById(R.id.tvEmergencyAlertSubtitle);
+
+        switchReadyForSupply = findViewById(R.id.switchReadyForSupply);
+        tvSupplyStatusBadge = findViewById(R.id.tvSupplyStatusBadge);
+        tvSellerStorageStock = findViewById(R.id.tvSellerStorageStock);
+        btnUpdateStock = findViewById(R.id.btnUpdateStock);
 
         spinnerHallFilter = findViewById(R.id.spinnerHallFilter);
         tvHallBatchSummary = findViewById(R.id.tvHallBatchSummary);
@@ -250,6 +385,35 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     }
 
     private void setupListeners() {
+        if (switchReadyForSupply != null) {
+            switchReadyForSupply.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    boolean targetState = switchReadyForSupply.isChecked();
+                    int currentStock = (currentSellerUser != null) ? currentSellerUser.getAvailableStockJars() : 50;
+
+                    if (targetState && currentStock <= 0) {
+                        switchReadyForSupply.setChecked(false);
+                        Toast.makeText(SellerDashboardActivity.this,
+                                "Cannot go online: Delivery storage is empty (0 jars). Please restock first!", Toast.LENGTH_LONG).show();
+                        showRestockDialog();
+                        return;
+                    }
+
+                    toggleReadyForSupply(targetState);
+                }
+            });
+        }
+
+        if (btnUpdateStock != null) {
+            btnUpdateStock.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showRestockDialog();
+                }
+            });
+        }
+
         if (cardEmergencyNotice != null) {
             cardEmergencyNotice.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -521,15 +685,17 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                 String assigned = order.getAssignedSellerId();
                 if (TextUtils.isEmpty(assigned)) assigned = order.getSellerId();
 
-                boolean isUnclaimedPending = WaterOrder.STATUS_PENDING.equalsIgnoreCase(status)
-                        && (TextUtils.isEmpty(assigned) || (currentSellerUid != null && currentSellerUid.equals(assigned)));
+                boolean isAssignedToMe = (currentSellerUid != null && currentSellerUid.equals(assigned))
+                        || (TextUtils.isEmpty(assigned) && WaterOrder.STATUS_PENDING.equalsIgnoreCase(status));
 
-                boolean isOwnClaimed = (WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
-                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status))
-                        && (currentSellerUid != null && currentSellerUid.equals(assigned));
+                if (!isAssignedToMe) {
+                    continue;
+                }
 
-                boolean isOwnDelivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
-                        && (currentSellerUid != null && currentSellerUid.equals(assigned));
+                boolean isUnclaimedPending = WaterOrder.STATUS_PENDING.equalsIgnoreCase(status);
+                boolean isOwnClaimed = WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
+                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status);
+                boolean isOwnDelivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status);
 
                 if ((isUnclaimedPending || isOwnClaimed) && order.isUrgent()) {
                     urgentPendingCount++;
@@ -620,15 +786,15 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             String assigned = order.getAssignedSellerId();
             if (TextUtils.isEmpty(assigned)) assigned = order.getSellerId();
 
-            // Only show unclaimed pending or this seller's own claimed orders.
-            // Never show DELIVERED orders or orders claimed by another seller.
-            boolean isUnclaimedPending = WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)
-                    && (TextUtils.isEmpty(assigned) || (currentSellerUid != null && currentSellerUid.equals(assigned)));
+            // Strictly filter so each seller only sees orders assigned to THEM (or pending unclaimed orders)
+            boolean isAssignedToMe = (currentSellerUid != null && currentSellerUid.equals(assigned))
+                    || (TextUtils.isEmpty(assigned) && WaterOrder.STATUS_PENDING.equalsIgnoreCase(st));
 
-            boolean isOwnClaimed = (WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(st) || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(st))
-                    && (currentSellerUid != null && currentSellerUid.equals(assigned));
+            boolean isActive = WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)
+                    || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(st)
+                    || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(st);
 
-            if (!isUnclaimedPending && !isOwnClaimed) {
+            if (!isAssignedToMe || !isActive) {
                 continue;
             }
 
@@ -1229,6 +1395,75 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         }
 
         FirebaseManager.getInstance().updateOrderFields(order.getOrderId(), orderUpdates, null, null);
+
+        // 2B. Store permanent copy in seller's dedicated delivery storage: seller_storage/{sellerUid}/delivered_orders/{orderId}
+        if (!TextUtils.isEmpty(sellerUid)) {
+            FirebaseFirestore.getInstance().collection("seller_storage")
+                    .document(sellerUid)
+                    .collection("delivered_orders")
+                    .document(order.getOrderId())
+                    .set(order);
+
+            FirebaseManager.getInstance().getDatabase().getReference("seller_storage")
+                    .child(sellerUid)
+                    .child("delivered_orders")
+                    .child(order.getOrderId())
+                    .setValue(order);
+        }
+
+        // 2C. Deduct delivered jars from seller storage & increment totalDeliveredCount
+        final int totalJarsDelivered = order.getJarRefillCount() + order.getNewJarWithDepositCount();
+        if (!TextUtils.isEmpty(sellerUid)) {
+            final DocumentReference sellerRef = FirebaseManager.getInstance().getUsersRef().document(sellerUid);
+            FirebaseManager.getInstance().getFirestore().runTransaction(new Transaction.Function<Void>() {
+                @Nullable
+                @Override
+                public Void apply(@NonNull Transaction transaction) throws FirebaseFirestoreException {
+                    DocumentSnapshot sSnap = transaction.get(sellerRef);
+                    long stock = 50;
+                    long deliveredCount = 0;
+                    boolean ready = false;
+                    if (sSnap.exists()) {
+                        Long sVal = sSnap.getLong("availableStockJars");
+                        if (sVal != null) stock = sVal;
+                        Long dVal = sSnap.getLong("totalDeliveredCount");
+                        if (dVal != null) deliveredCount = dVal;
+                        Boolean rVal = sSnap.getBoolean("readyForSupply");
+                        if (rVal != null) ready = rVal;
+                    }
+                    long newStock = Math.max(0, stock - totalJarsDelivered);
+                    long newDeliveredCount = deliveredCount + 1;
+                    if (newStock <= 0) ready = false;
+
+                    Map<String, Object> sUpdates = new HashMap<>();
+                    sUpdates.put("availableStockJars", newStock);
+                    sUpdates.put("totalDeliveredCount", newDeliveredCount);
+                    sUpdates.put("readyForSupply", ready);
+
+                    transaction.update(sellerRef, sUpdates);
+
+                    // Mirror in RTDB online_sellers
+                    FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                            .child(sellerUid)
+                            .updateChildren(sUpdates);
+
+                    return null;
+                }
+            }).addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void unused) {
+                    if (currentSellerUser != null) {
+                        int newStock = Math.max(0, currentSellerUser.getAvailableStockJars() - totalJarsDelivered);
+                        currentSellerUser.setAvailableStockJars(newStock);
+                        currentSellerUser.setTotalDeliveredCount(currentSellerUser.getTotalDeliveredCount() + 1);
+                        if (newStock <= 0) {
+                            currentSellerUser.setReadyForSupply(false);
+                        }
+                        updateSupplyUiState();
+                    }
+                }
+            });
+        }
 
         // 3. Update buyer bottle ledger in both databases
         final int jarsDelivered = order.getJarRefillCount();
