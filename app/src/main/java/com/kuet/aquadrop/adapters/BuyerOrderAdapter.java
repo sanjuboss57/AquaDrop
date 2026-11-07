@@ -70,6 +70,7 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
         private final TextView tvItemEta;
         private final TextView tvItemUrgentBadge;
         private final TextView tvItemLocationNotes;
+        private final TextView tvItemAssignedSeller;
         private final TextView tvItemTotalPrice;
         private final MaterialButton btnTrackOrder;
         private final MaterialButton btnShowQr;
@@ -84,6 +85,7 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
             tvItemEta = itemView.findViewById(R.id.tvItemEta);
             tvItemUrgentBadge = itemView.findViewById(R.id.tvItemUrgentBadge);
             tvItemLocationNotes = itemView.findViewById(R.id.tvItemLocationNotes);
+            tvItemAssignedSeller = itemView.findViewById(R.id.tvItemAssignedSeller);
             tvItemTotalPrice = itemView.findViewById(R.id.tvItemTotalPrice);
             btnTrackOrder = itemView.findViewById(R.id.btnTrackOrder);
             btnShowQr = itemView.findViewById(R.id.btnShowQr);
@@ -102,11 +104,27 @@ public class BuyerOrderAdapter extends RecyclerView.Adapter<BuyerOrderAdapter.Or
                 tvItemUrgentBadge.setVisibility(order.isUrgent() ? View.VISIBLE : View.GONE);
             }
             if (tvItemLocationNotes != null) {
-                if (!TextUtils.isEmpty(order.getLocationNotes())) {
+                String directions = !TextUtils.isEmpty(order.getOptionalDirections())
+                        ? order.getOptionalDirections()
+                        : order.getLocationNotes();
+                if (!TextUtils.isEmpty(directions)) {
                     tvItemLocationNotes.setVisibility(View.VISIBLE);
-                    tvItemLocationNotes.setText("📍 Exact Directions: " + order.getLocationNotes());
+                    tvItemLocationNotes.setText("📍 Exact Directions: " + directions);
                 } else {
                     tvItemLocationNotes.setVisibility(View.GONE);
+                }
+            }
+
+            if (tvItemAssignedSeller != null) {
+                String status = order.getStatus() != null ? order.getStatus() : WaterOrder.STATUS_PENDING;
+                boolean isHandled = WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
+                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status);
+                String sellerName = order.getAssignedSellerName();
+                if (isHandled && !TextUtils.isEmpty(sellerName)) {
+                    tvItemAssignedSeller.setVisibility(View.VISIBLE);
+                    tvItemAssignedSeller.setText("🚚 Handled by: " + sellerName);
+                } else {
+                    tvItemAssignedSeller.setVisibility(View.GONE);
                 }
             }
 

@@ -24,8 +24,11 @@ public class User implements Serializable {
     private int emptyJarsHeld;
     private double depositBalance;
     private String sellerAccessKey;
+    private String sellerAccessCode;
     private boolean sellerAuthorized;
     private String locationNotes; // Optional exact directions or landmark notes
+    private String optionalDirections;
+    private String depotOrDriverTitle;
 
     // Required empty constructor for Firestore deserialization
     public User() {
@@ -171,11 +174,41 @@ public class User implements Serializable {
     }
 
     public String getLocationNotes() {
-        return locationNotes;
+        if (locationNotes != null && !locationNotes.isEmpty()) return locationNotes;
+        return optionalDirections;
     }
 
     public void setLocationNotes(String locationNotes) {
         this.locationNotes = locationNotes;
+        this.optionalDirections = locationNotes;
+    }
+
+    public String getOptionalDirections() {
+        if (optionalDirections != null && !optionalDirections.isEmpty()) return optionalDirections;
+        return locationNotes;
+    }
+
+    public void setOptionalDirections(String optionalDirections) {
+        this.optionalDirections = optionalDirections;
+        this.locationNotes = optionalDirections;
+    }
+
+    public String getSellerAccessCode() {
+        if (sellerAccessCode != null && !sellerAccessCode.isEmpty()) return sellerAccessCode;
+        return sellerAccessKey;
+    }
+
+    public void setSellerAccessCode(String sellerAccessCode) {
+        this.sellerAccessCode = sellerAccessCode;
+        this.sellerAccessKey = sellerAccessCode;
+    }
+
+    public String getDepotOrDriverTitle() {
+        return depotOrDriverTitle;
+    }
+
+    public void setDepotOrDriverTitle(String depotOrDriverTitle) {
+        this.depotOrDriverTitle = depotOrDriverTitle;
     }
 
     public static User fromDataSnapshot(DataSnapshot snapshot) {
@@ -249,8 +282,17 @@ public class User implements Serializable {
             if (snapshot.hasChild("sellerAccessKey") && snapshot.child("sellerAccessKey").getValue() != null)
                 u.setSellerAccessKey(String.valueOf(snapshot.child("sellerAccessKey").getValue()));
 
+            if (snapshot.hasChild("sellerAccessCode") && snapshot.child("sellerAccessCode").getValue() != null)
+                u.setSellerAccessCode(String.valueOf(snapshot.child("sellerAccessCode").getValue()));
+
+            if (snapshot.hasChild("depotOrDriverTitle") && snapshot.child("depotOrDriverTitle").getValue() != null)
+                u.setDepotOrDriverTitle(String.valueOf(snapshot.child("depotOrDriverTitle").getValue()));
+
             if (snapshot.hasChild("locationNotes") && snapshot.child("locationNotes").getValue() != null)
                 u.setLocationNotes(String.valueOf(snapshot.child("locationNotes").getValue()));
+
+            if (snapshot.hasChild("optionalDirections") && snapshot.child("optionalDirections").getValue() != null)
+                u.setOptionalDirections(String.valueOf(snapshot.child("optionalDirections").getValue()));
 
             if (snapshot.hasChild("sellerAuthorized") && snapshot.child("sellerAuthorized").getValue() != null) {
                 Object v = snapshot.child("sellerAuthorized").getValue();

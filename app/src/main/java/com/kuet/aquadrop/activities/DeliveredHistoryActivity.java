@@ -96,7 +96,19 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
         });
     }
 
+    private boolean isMyDeliveredOrder(WaterOrder order, String currentSellerUid) {
+        if (order == null || !WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
+            return false;
+        }
+        if (android.text.TextUtils.isEmpty(currentSellerUid)) return true;
+        String assigned = order.getAssignedSellerId();
+        if (android.text.TextUtils.isEmpty(assigned)) assigned = order.getSellerId();
+        return currentSellerUid.equals(assigned);
+    }
+
     private void fetchDeliveredOrders() {
+        final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
+
         // 1. Fetch from Cloud Firestore
         try {
             if (firestoreListener != null) {
@@ -113,7 +125,7 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
                             if (snapshots != null) {
                                 for (DocumentSnapshot doc : snapshots.getDocuments()) {
                                     WaterOrder order = WaterOrder.fromSnapshot(doc);
-                                    if (order != null && WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
+                                    if (isMyDeliveredOrder(order, currentSellerUid)) {
                                         deliveredOrdersMap.put(order.getOrderId(), order);
                                     }
                                 }
@@ -136,7 +148,7 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
                     if (snapshot.exists()) {
                         for (DataSnapshot child : snapshot.getChildren()) {
                             WaterOrder order = WaterOrder.fromDataSnapshot(child);
-                            if (order != null && WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
+                            if (isMyDeliveredOrder(order, currentSellerUid)) {
                                 deliveredOrdersMap.put(order.getOrderId(), order);
                             }
                         }
@@ -152,7 +164,13 @@ public class DeliveredHistoryActivity extends AppCompatActivity {
     }
 
     private void updateDeliveredUi() {
-        List<WaterOrder> list = new ArrayList<>(deliveredOrdersMap.values());
+        final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        List<WaterOrder> list = new ArrayList<>();
+        for (WaterOrder o : deliveredOrdersMap.values()) {
+            if (isMyDeliveredOrder(o, currentSellerUid)) {
+                list.add(o);
+            }
+        }
 
         // Sort newest-first (timestamp descending)
         Collections.sort(list, new Comparator<WaterOrder>() {

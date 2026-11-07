@@ -89,7 +89,7 @@
 
                     <!-- Seller Special Authorization Section (Shown only if Seller selected) -->
                     <LinearLayout
-                        android:id="@+id/llSellerAccessSection"
+                        android:id="@+id/layoutSellerSpecialAccess"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
@@ -112,26 +112,44 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="8dp"
-                            android:text="Seller and delivery van accounts require an official authorization key provided by the AquaDrop campus administration."
+                            android:text="Seller accounts require an official access code (e.g., AQUA-SELLER-1). Each code belongs strictly to one seller."
                             android:textColor="@color/text_secondary"
                             android:textSize="11sp" />
 
                         <com.google.android.material.textfield.TextInputLayout
-                            android:id="@+id/tilSellerAccessKey"
+                            android:id="@+id/tilSellerAccessCode"
                             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="Authority Special Access Key *"
+                            android:hint="Special Seller Access Code (e.g., AQUA-SELLER-1)"
                             app:boxStrokeColor="@color/accent"
                             app:hintTextColor="@color/accent"
                             app:startIconDrawable="@drawable/ic_person"
                             app:startIconTint="@color/accent">
 
                             <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etSellerAccessKey"
+                                android:id="@+id/etSellerAccessCode"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:inputType="textCapCharacters"
+                                android:maxLines="1" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilDepotName"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:hint="Your Depot / Driver Name (e.g., Campus Van 1)"
+                            app:boxStrokeColor="@color/accent"
+                            app:hintTextColor="@color/accent">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etDepotName"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPersonName"
                                 android:maxLines="1" />
                         </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
@@ -266,6 +284,25 @@
                                 android:text="1" />
                         </com.google.android.material.textfield.TextInputLayout>
                     </LinearLayout>
+
+                    <!-- Optional Directions / Landmark (Visible for Buyers) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilOptionalDirections"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:hint="Optional Directions / Landmark (e.g., Wing, Gate color, nearby landmark)"
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etOptionalDirections"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="text"
+                            android:maxLines="2" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Loading Progress -->
                     <ProgressBar

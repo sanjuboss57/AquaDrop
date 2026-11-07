@@ -13,6 +13,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.gms.maps.model.LatLng;
@@ -42,8 +43,11 @@ public class RegisterActivity extends AppCompatActivity {
     private Spinner spinnerLocation;
     private TextInputEditText etRoomOrFlat;
     private TextInputEditText etFloorNumber;
-    private LinearLayout llSellerAccessSection;
-    private TextInputEditText etSellerAccessKey;
+    private LinearLayout layoutSellerSpecialAccess;
+    private TextInputEditText etSellerAccessCode;
+    private TextInputEditText etDepotName;
+    private View tilOptionalDirections;
+    private TextInputEditText etOptionalDirections;
     private MaterialButton btnRegister;
     private ProgressBar progressBar;
     private TextView tvGoToLogin;
@@ -68,8 +72,13 @@ public class RegisterActivity extends AppCompatActivity {
         spinnerLocation = findViewById(R.id.spinnerLocation);
         etRoomOrFlat = findViewById(R.id.etRoomOrFlat);
         etFloorNumber = findViewById(R.id.etFloorNumber);
-        llSellerAccessSection = findViewById(R.id.llSellerAccessSection);
-        etSellerAccessKey = findViewById(R.id.etSellerAccessKey);
+
+        layoutSellerSpecialAccess = findViewById(R.id.layoutSellerSpecialAccess);
+        etSellerAccessCode = findViewById(R.id.etSellerAccessCode);
+        etDepotName = findViewById(R.id.etDepotName);
+        tilOptionalDirections = findViewById(R.id.tilOptionalDirections);
+        etOptionalDirections = findViewById(R.id.etOptionalDirections);
+
         btnRegister = findViewById(R.id.btnRegister);
         progressBar = findViewById(R.id.progressBarRegister);
         tvGoToLogin = findViewById(R.id.tvGoToLogin);
@@ -91,8 +100,12 @@ public class RegisterActivity extends AppCompatActivity {
             rgRole.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
                 @Override
                 public void onCheckedChanged(RadioGroup group, int checkedId) {
-                    if (llSellerAccessSection != null) {
-                        llSellerAccessSection.setVisibility(checkedId == R.id.rbSeller ? View.VISIBLE : View.GONE);
+                    boolean isSeller = (checkedId == R.id.rbSeller);
+                    if (layoutSellerSpecialAccess != null) {
+                        layoutSellerSpecialAccess.setVisibility(isSeller ? View.VISIBLE : View.GONE);
+                    }
+                    if (tilOptionalDirections != null) {
+                        tilOptionalDirections.setVisibility(isSeller ? View.GONE : View.VISIBLE);
                     }
                 }
             });
@@ -166,36 +179,6 @@ public class RegisterActivity extends AppCompatActivity {
         // Determine Selected Role
         final String role = rbSeller.isChecked() ? User.ROLE_SELLER : User.ROLE_BUYER;
 
-        // Seller Special Authorization Verification
-        final String sellerKeyInput;
-        if (rbSeller.isChecked()) {
-            String enteredKey = etSellerAccessKey != null && etSellerAccessKey.getText() != null
-                    ? etSellerAccessKey.getText().toString().trim() : "";
-            if (TextUtils.isEmpty(enteredKey)) {
-                if (etSellerAccessKey != null) {
-                    etSellerAccessKey.setError("Authority Special Access Key required for seller registration");
-                    etSellerAccessKey.requestFocus();
-                }
-                Toast.makeText(this, "Special Access Key is required for Seller accounts", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (!isValidSellerAccessKey(enteredKey)) {
-                if (etSellerAccessKey != null) {
-                    etSellerAccessKey.setError("Invalid Access Key! Contact AquaDrop Authority (KUET).");
-                    etSellerAccessKey.requestFocus();
-                }
-                new androidx.appcompat.app.AlertDialog.Builder(this)
-                        .setTitle("🔒 Special Access Restricted")
-                        .setMessage("Seller / Van accounts are restricted to authorized KUET depot personnel.\n\nYou must possess an official Special Access Key provided by the AquaDrop Authority to create a seller account.\n\nPlease contact administration or select 'Buyer / Consumer' to register.")
-                        .setPositiveButton("OK", null)
-                        .show();
-                return;
-            }
-            sellerKeyInput = enteredKey;
-        } else {
-            sellerKeyInput = "";
-        }
-
         // Selected KUET Location and GPS coordinates
         final String selectedLocation = (String) spinnerLocation.getSelectedItem();
         final LatLng latLng = KuetLocations.getLatLngByName(selectedLocation);
@@ -203,10 +186,114 @@ public class RegisterActivity extends AppCompatActivity {
         final int finalFloorNumber = floorNumber;
         final String finalRoom = roomOrFlat;
 
-        // Fast Phone-Based Auth Email
-        final String authEmail = normalizedPhone + "@aquadrop.kuet.ac.bd";
+        final String optionalDirections = (etOptionalDirections != null && etOptionalDirections.getText() != null)
+                ? etOptionalDirections.getText().toString().trim() : "";
 
-        setLoadingState(true);
+        // Seller Special Authorization Verification
+        if (rbSeller.isChecked()) {
+            String enteredKey = etSellerAccessCode != null && etSellerAccessCode.getText() != null
+                    ? etSellerAccessCode.getText().toString().trim() : "";
+            if (TextUtils.isEmpty(enteredKey)) {
+                if (etSellerAccessCode != null) {
+                    etSellerAccessCode.setError("Special Seller Access Code is required");
+                    etSellerAccessCode.requestFocus();
+                }
+                Toast.makeText(this, "Special Seller Access Code is required", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!isValidSellerAccessKey(enteredKey)) {
+                if (etSellerAccessCode != null) {
+                    etSellerAccessCode.setError("Invalid Access Code! Contact AquaDrop Authority (KUET).");
+                    etSellerAccessCode.requestFocus();
+                }
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("🔒 Special Access Code Required")
+                        .setMessage("Seller / Van accounts require an authorized Special Access Code (e.g., AQUA-SELLER-1, AQUA-SELLER-2, AQUA-SELLER-3, AQUA-SELLER-4, KUET-WATER-ADMIN).\n\nPlease enter an official code or select 'Buyer / Consumer' to register.")
+                        .setPositiveButton("OK", null)
+                        .show();
+                return;
+            }
+
+            final String cleanCode = enteredKey.toUpperCase(Locale.ROOT).trim();
+            final String enteredDepot = (etDepotName != null && etDepotName.getText() != null
+                    && !TextUtils.isEmpty(etDepotName.getText().toString().trim()))
+                    ? etDepotName.getText().toString().trim()
+                    : "KUET Depot";
+
+            setLoadingState(true);
+
+            // Check Cloud Firestore users collection to ensure no existing Seller has claimed this code
+            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users")
+                    .whereEqualTo("sellerAccessCode", cleanCode)
+                    .get()
+                    .addOnSuccessListener(new OnSuccessListener<com.google.firebase.firestore.QuerySnapshot>() {
+                        @Override
+                        public void onSuccess(com.google.firebase.firestore.QuerySnapshot querySnapshot) {
+                            if (querySnapshot != null && !querySnapshot.isEmpty()) {
+                                setLoadingState(false);
+                                new androidx.appcompat.app.AlertDialog.Builder(RegisterActivity.this)
+                                        .setTitle("🔒 Code Already Claimed")
+                                        .setMessage("Seller Access Code \"" + cleanCode + "\" is already registered to another Seller!\n\nEach special access code belongs strictly to one seller.")
+                                        .setPositiveButton("OK", null)
+                                        .show();
+                                return;
+                            }
+
+                            // Also check legacy sellerAccessKey field
+                            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users")
+                                    .whereEqualTo("sellerAccessKey", cleanCode)
+                                    .get()
+                                    .addOnSuccessListener(new OnSuccessListener<com.google.firebase.firestore.QuerySnapshot>() {
+                                        @Override
+                                        public void onSuccess(com.google.firebase.firestore.QuerySnapshot legacySnap) {
+                                            if (legacySnap != null && !legacySnap.isEmpty()) {
+                                                setLoadingState(false);
+                                                new androidx.appcompat.app.AlertDialog.Builder(RegisterActivity.this)
+                                                        .setTitle("🔒 Code Already Claimed")
+                                                        .setMessage("Seller Access Code \"" + cleanCode + "\" is already registered to another Seller!\n\nEach special access code belongs strictly to one seller.")
+                                                        .setPositiveButton("OK", null)
+                                                        .show();
+                                                return;
+                                            }
+
+                                            proceedWithRegistration(name, normalizedPhone, password, role,
+                                                    selectedLocation, finalRoom, finalFloorNumber, latLng,
+                                                    cleanCode, enteredDepot, optionalDirections);
+                                        }
+                                    })
+                                    .addOnFailureListener(new OnFailureListener() {
+                                        @Override
+                                        public void onFailure(@NonNull Exception e) {
+                                            proceedWithRegistration(name, normalizedPhone, password, role,
+                                                    selectedLocation, finalRoom, finalFloorNumber, latLng,
+                                                    cleanCode, enteredDepot, optionalDirections);
+                                        }
+                                    });
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            proceedWithRegistration(name, normalizedPhone, password, role,
+                                    selectedLocation, finalRoom, finalFloorNumber, latLng,
+                                    cleanCode, enteredDepot, optionalDirections);
+                        }
+                    });
+
+        } else {
+            setLoadingState(true);
+            proceedWithRegistration(name, normalizedPhone, password, role,
+                    selectedLocation, finalRoom, finalFloorNumber, latLng,
+                    "", "", optionalDirections);
+        }
+    }
+
+    private void proceedWithRegistration(final String name, final String normalizedPhone, final String password,
+                                        final String role, final String selectedLocation, final String finalRoom,
+                                        final int finalFloorNumber, final LatLng latLng,
+                                        final String sellerAccessCode, final String depotOrDriverTitle,
+                                        final String optionalDirections) {
+        final String authEmail = normalizedPhone + "@aquadrop.kuet.ac.bd";
 
         FirebaseManager.getInstance().getAuth().createUserWithEmailAndPassword(authEmail, password)
                 .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
@@ -216,7 +303,6 @@ public class RegisterActivity extends AppCompatActivity {
                         if (firebaseUser != null) {
                             String uid = firebaseUser.getUid();
 
-                            // Construct User Model with normalized phone
                             User newUser = new User(
                                     uid,
                                     name,
@@ -228,11 +314,15 @@ public class RegisterActivity extends AppCompatActivity {
                                     finalFloorNumber,
                                     latLng.latitude,
                                     latLng.longitude,
-                                    0,      // initial empty jars held
-                                    0.0     // initial deposit balance
+                                    0,
+                                    0.0
                             );
-                            newUser.setSellerAccessKey(sellerKeyInput);
-                            newUser.setSellerAuthorized(rbSeller.isChecked());
+                            newUser.setSellerAccessCode(sellerAccessCode);
+                            newUser.setSellerAccessKey(sellerAccessCode);
+                            newUser.setDepotOrDriverTitle(depotOrDriverTitle);
+                            newUser.setOptionalDirections(optionalDirections);
+                            newUser.setLocationNotes(optionalDirections);
+                            newUser.setSellerAuthorized(User.ROLE_SELLER.equalsIgnoreCase(role));
 
                             saveUserProfile(newUser);
                         } else {
@@ -245,7 +335,6 @@ public class RegisterActivity extends AppCompatActivity {
                     @Override
                     public void onFailure(Exception e) {
                         if (e instanceof FirebaseAuthUserCollisionException) {
-                            // User exists in Firebase Auth: seamlessly authenticate & update registration document
                             FirebaseManager.getInstance().getAuth().signInWithEmailAndPassword(authEmail, password)
                                     .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                                         @Override
@@ -267,8 +356,12 @@ public class RegisterActivity extends AppCompatActivity {
                                                         0,
                                                         0.0
                                                 );
-                                                updatedUser.setSellerAccessKey(sellerKeyInput);
-                                                updatedUser.setSellerAuthorized(rbSeller.isChecked());
+                                                updatedUser.setSellerAccessCode(sellerAccessCode);
+                                                updatedUser.setSellerAccessKey(sellerAccessCode);
+                                                updatedUser.setDepotOrDriverTitle(depotOrDriverTitle);
+                                                updatedUser.setOptionalDirections(optionalDirections);
+                                                updatedUser.setLocationNotes(optionalDirections);
+                                                updatedUser.setSellerAuthorized(User.ROLE_SELLER.equalsIgnoreCase(role));
                                                 saveUserProfile(updatedUser);
                                             } else {
                                                 setLoadingState(false);
@@ -348,8 +441,14 @@ public class RegisterActivity extends AppCompatActivity {
         spinnerLocation.setEnabled(!isLoading);
         rbBuyer.setEnabled(!isLoading);
         rbSeller.setEnabled(!isLoading);
-        if (etSellerAccessKey != null) {
-            etSellerAccessKey.setEnabled(!isLoading);
+        if (etSellerAccessCode != null) {
+            etSellerAccessCode.setEnabled(!isLoading);
+        }
+        if (etDepotName != null) {
+            etDepotName.setEnabled(!isLoading);
+        }
+        if (etOptionalDirections != null) {
+            etOptionalDirections.setEnabled(!isLoading);
         }
         tvGoToLogin.setEnabled(!isLoading);
     }
@@ -357,7 +456,12 @@ public class RegisterActivity extends AppCompatActivity {
     public static boolean isValidSellerAccessKey(String key) {
         if (key == null) return false;
         String clean = key.trim().toUpperCase(Locale.ROOT);
-        return clean.equals("AQUADROP_SELLER_2026")
+        return clean.equals("AQUA-SELLER-1")
+                || clean.equals("AQUA-SELLER-2")
+                || clean.equals("AQUA-SELLER-3")
+                || clean.equals("AQUA-SELLER-4")
+                || clean.equals("KUET-WATER-ADMIN")
+                || clean.equals("AQUADROP_SELLER_2026")
                 || clean.equals("KUET_ADMIN_AQUA")
                 || clean.equals("AQUA_SELLER_KEY")
                 || clean.equals("AQUA2026")

@@ -123,6 +123,17 @@
                     android:textSize="11sp"
                     android:textStyle="italic"
                     android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvItemAssignedSeller"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="🚚 Handled by: Rahim"
+                    android:textColor="@color/primary"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <TextView

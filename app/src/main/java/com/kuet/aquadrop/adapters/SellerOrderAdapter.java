@@ -177,11 +177,14 @@ public class SellerOrderAdapter extends RecyclerView.Adapter<SellerOrderAdapter.
 
             // Optional Exact Location Notes / Directions
             if (llLocationNotes != null && tvLocationNotes != null) {
-                if (!TextUtils.isEmpty(order.getLocationNotes())) {
-                    llLocationNotes.setVisibility(View.VISIBLE);
-                    tvLocationNotes.setText("📍 Exact Directions: " + order.getLocationNotes());
+                String directions = !TextUtils.isEmpty(order.getOptionalDirections())
+                        ? order.getOptionalDirections()
+                        : order.getLocationNotes();
+                llLocationNotes.setVisibility(View.VISIBLE);
+                if (!TextUtils.isEmpty(directions)) {
+                    tvLocationNotes.setText("📍 Exact Directions: " + directions);
                 } else {
-                    llLocationNotes.setVisibility(View.GONE);
+                    tvLocationNotes.setText("📍 Directions: Standard Hall/Area drop");
                 }
             }
 

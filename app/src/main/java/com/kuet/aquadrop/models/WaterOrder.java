@@ -46,10 +46,13 @@ public class WaterOrder implements Serializable {
     private String status; // PENDING, ACCEPTED, OUT_FOR_DELIVERY, DELIVERED
     private long timestamp;
     private String qrToken;
-    private String sellerId;
+    private String sellerId = "";
+    private String assignedSellerId = "";
+    private String assignedSellerName = "";
     private long deliveredTimestamp;
     private String deliveredDate;
     private String locationNotes; // Optional exact location directions or landmark explanation
+    private String optionalDirections;
 
     // Required empty constructor for Firestore serialization
     public WaterOrder() {
@@ -132,10 +135,24 @@ public class WaterOrder implements Serializable {
             order.setStatus(safeString(doc, "status", STATUS_PENDING));
             order.setTimestamp(safeLong(doc, "timestamp", System.currentTimeMillis()));
             order.setQrToken(safeString(doc, "qrToken", ""));
-            order.setSellerId(safeString(doc, "sellerId", ""));
+
+            String sellerIdVal = safeString(doc, "assignedSellerId", "");
+            if (TextUtils.isEmpty(sellerIdVal)) {
+                sellerIdVal = safeString(doc, "sellerId", "");
+            }
+            order.setSellerId(sellerIdVal);
+            order.setAssignedSellerId(sellerIdVal);
+            order.setAssignedSellerName(safeString(doc, "assignedSellerName", ""));
+
             order.setDeliveredDate(safeString(doc, "deliveredDate", ""));
             order.setDeliveredTimestamp(safeLong(doc, "deliveredTimestamp", 0L));
-            order.setLocationNotes(safeString(doc, "locationNotes", ""));
+
+            String directionsVal = safeString(doc, "optionalDirections", "");
+            if (TextUtils.isEmpty(directionsVal)) {
+                directionsVal = safeString(doc, "locationNotes", "");
+            }
+            order.setLocationNotes(directionsVal);
+            order.setOptionalDirections(directionsVal);
 
             return order;
         } catch (Throwable t) {
@@ -197,10 +214,24 @@ public class WaterOrder implements Serializable {
             order.setStatus(safeRtdbString(snapshot, "status", STATUS_PENDING));
             order.setTimestamp(safeRtdbLong(snapshot, "timestamp", System.currentTimeMillis()));
             order.setQrToken(safeRtdbString(snapshot, "qrToken", ""));
-            order.setSellerId(safeRtdbString(snapshot, "sellerId", ""));
+
+            String sellerIdVal = safeRtdbString(snapshot, "assignedSellerId", "");
+            if (TextUtils.isEmpty(sellerIdVal)) {
+                sellerIdVal = safeRtdbString(snapshot, "sellerId", "");
+            }
+            order.setSellerId(sellerIdVal);
+            order.setAssignedSellerId(sellerIdVal);
+            order.setAssignedSellerName(safeRtdbString(snapshot, "assignedSellerName", ""));
+
             order.setDeliveredDate(safeRtdbString(snapshot, "deliveredDate", ""));
             order.setDeliveredTimestamp(safeRtdbLong(snapshot, "deliveredTimestamp", 0L));
-            order.setLocationNotes(safeRtdbString(snapshot, "locationNotes", ""));
+
+            String directionsVal = safeRtdbString(snapshot, "optionalDirections", "");
+            if (TextUtils.isEmpty(directionsVal)) {
+                directionsVal = safeRtdbString(snapshot, "locationNotes", "");
+            }
+            order.setLocationNotes(directionsVal);
+            order.setOptionalDirections(directionsVal);
 
             return order;
         } catch (Throwable t) {
@@ -460,11 +491,31 @@ public class WaterOrder implements Serializable {
     }
 
     public String getSellerId() {
-        return sellerId;
+        if (!TextUtils.isEmpty(assignedSellerId)) return assignedSellerId;
+        return sellerId != null ? sellerId : "";
     }
 
     public void setSellerId(String sellerId) {
-        this.sellerId = sellerId;
+        this.sellerId = sellerId != null ? sellerId : "";
+        this.assignedSellerId = this.sellerId;
+    }
+
+    public String getAssignedSellerId() {
+        if (!TextUtils.isEmpty(assignedSellerId)) return assignedSellerId;
+        return sellerId != null ? sellerId : "";
+    }
+
+    public void setAssignedSellerId(String assignedSellerId) {
+        this.assignedSellerId = assignedSellerId != null ? assignedSellerId : "";
+        this.sellerId = this.assignedSellerId;
+    }
+
+    public String getAssignedSellerName() {
+        return assignedSellerName != null ? assignedSellerName : "";
+    }
+
+    public void setAssignedSellerName(String assignedSellerName) {
+        this.assignedSellerName = assignedSellerName != null ? assignedSellerName : "";
     }
 
     public long getDeliveredTimestamp() {
@@ -484,10 +535,22 @@ public class WaterOrder implements Serializable {
     }
 
     public String getLocationNotes() {
-        return locationNotes;
+        if (!TextUtils.isEmpty(locationNotes)) return locationNotes;
+        return optionalDirections;
     }
 
     public void setLocationNotes(String locationNotes) {
         this.locationNotes = locationNotes;
+        this.optionalDirections = locationNotes;
+    }
+
+    public String getOptionalDirections() {
+        if (!TextUtils.isEmpty(optionalDirections)) return optionalDirections;
+        return locationNotes;
+    }
+
+    public void setOptionalDirections(String optionalDirections) {
+        this.optionalDirections = optionalDirections;
+        this.locationNotes = optionalDirections;
     }
 }

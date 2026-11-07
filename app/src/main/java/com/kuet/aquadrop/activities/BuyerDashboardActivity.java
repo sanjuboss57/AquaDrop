@@ -518,9 +518,12 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
             updateDeliveryGpsDisplay();
         }
 
-        if (etExactLocationDirections != null && !TextUtils.isEmpty(user.getLocationNotes())
+        String savedDirections = !TextUtils.isEmpty(user.getOptionalDirections())
+                ? user.getOptionalDirections()
+                : user.getLocationNotes();
+        if (etExactLocationDirections != null && !TextUtils.isEmpty(savedDirections)
                 && TextUtils.isEmpty(etExactLocationDirections.getText())) {
-            etExactLocationDirections.setText(user.getLocationNotes());
+            etExactLocationDirections.setText(savedDirections);
         }
     }
 
@@ -1042,15 +1045,26 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 qrToken
         );
 
-        final String exactLocationNotes = etExactLocationDirections != null && etExactLocationDirections.getText() != null
+        String exactLocationNotes = etExactLocationDirections != null && etExactLocationDirections.getText() != null
                 ? etExactLocationDirections.getText().toString().trim() : "";
+        if (TextUtils.isEmpty(exactLocationNotes) && currentUser != null) {
+            exactLocationNotes = !TextUtils.isEmpty(currentUser.getOptionalDirections())
+                    ? currentUser.getOptionalDirections()
+                    : currentUser.getLocationNotes();
+        }
+        if (exactLocationNotes == null) exactLocationNotes = "";
+
         newOrder.setLocationNotes(exactLocationNotes);
+        newOrder.setOptionalDirections(exactLocationNotes);
+        newOrder.setAssignedSellerId("");
+        newOrder.setAssignedSellerName("");
 
         // Add immediately to local buyer map for instantaneous responsiveness
         buyerOrdersMap.put(orderId, newOrder);
         refreshBuyerOrdersUi();
 
         // Dual-storage write: Realtime Database (guaranteed online sync) + Cloud Firestore
+        final String finalExactDirections = exactLocationNotes;
         FirebaseManager.getInstance().saveOrder(newOrder,
                 new com.google.android.gms.tasks.OnSuccessListener<Void>() {
                     @Override
@@ -1066,12 +1080,16 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LAT, finalLat);
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_BUYER_LNG, finalLng);
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, finalLocName);
-                        alertIntent.putExtra("locationNotes", exactLocationNotes);
+                        alertIntent.putExtra("locationNotes", finalExactDirections);
+                        alertIntent.putExtra("optionalDirections", finalExactDirections);
                         alertIntent.putExtra("isUrgent", cbExpressDelivery.isChecked());
                         sendBroadcast(alertIntent);
 
-                        if (currentUser != null && !TextUtils.isEmpty(exactLocationNotes)) {
-                            FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid()).update("locationNotes", exactLocationNotes);
+                        if (currentUser != null && !TextUtils.isEmpty(finalExactDirections)) {
+                            Map<String, Object> dirUpdates = new HashMap<>();
+                            dirUpdates.put("locationNotes", finalExactDirections);
+                            dirUpdates.put("optionalDirections", finalExactDirections);
+                            FirebaseManager.getInstance().getUsersRef().document(currentUser.getUid()).update(dirUpdates);
                         }
 
                         // Week 10 Component: ContentProvider record insertion

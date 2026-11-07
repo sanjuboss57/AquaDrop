@@ -56,6 +56,7 @@ import com.journeyapps.barcodescanner.ScanIntentResult;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.adapters.SellerOrderAdapter;
+import com.kuet.aquadrop.models.User;
 import com.kuet.aquadrop.models.WaterOrder;
 import com.kuet.aquadrop.models.WaterQuality;
 import com.kuet.aquadrop.receivers.DeliveryStatusReceiver;
@@ -108,6 +109,9 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     private List<WaterOrder> allOrdersList = new ArrayList<>();
 
     // State & Listeners
+    private User currentSellerUser;
+    private String currentSellerName = "Authorized Seller";
+    private String currentSellerDepotTitle = "KUET Depot";
     private ListenerRegistration ordersListenerRegistration;
     private ValueEventListener rtdbOrdersListener;
     private final Map<String, WaterOrder> liveOrdersMap = new HashMap<>();
@@ -139,7 +143,55 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         initViews();
         setupRecyclerView();
         setupListeners();
+        loadSellerProfile();
         subscribeToOrdersCollection();
+    }
+
+    private void loadSellerProfile() {
+        String uid = FirebaseManager.getInstance().getCurrentUserId();
+        if (TextUtils.isEmpty(uid)) return;
+
+        // Fetch from Cloud Firestore
+        FirebaseManager.getInstance().getUsersRef().document(uid).get()
+                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                    @Override
+                    public void onSuccess(DocumentSnapshot doc) {
+                        if (doc != null && doc.exists()) {
+                            currentSellerUser = doc.toObject(User.class);
+                            if (currentSellerUser != null) {
+                                if (!TextUtils.isEmpty(currentSellerUser.getName())) {
+                                    currentSellerName = currentSellerUser.getName();
+                                }
+                                if (!TextUtils.isEmpty(currentSellerUser.getDepotOrDriverTitle())) {
+                                    currentSellerDepotTitle = currentSellerUser.getDepotOrDriverTitle();
+                                }
+                            }
+                        }
+                    }
+                });
+
+        // Also fetch from Firebase Realtime Database
+        FirebaseManager.getInstance().getRtdbUsersRef().child(uid)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        if (snapshot.exists()) {
+                            User u = User.fromDataSnapshot(snapshot);
+                            if (u != null) {
+                                currentSellerUser = u;
+                                if (!TextUtils.isEmpty(u.getName())) {
+                                    currentSellerName = u.getName();
+                                }
+                                if (!TextUtils.isEmpty(u.getDepotOrDriverTitle())) {
+                                    currentSellerDepotTitle = u.getDepotOrDriverTitle();
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
     }
 
     private void initViews() {
@@ -448,6 +500,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     private void recalculateAndDisplayOrders() {
         this.allOrdersList = new ArrayList<>(liveOrdersMap.values());
         List<WaterOrder> orderList = this.allOrdersList;
+        final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
+
         int pendingCount = 0;
         int activeDeliveriesCount = 0;
         int emptyCollectedCount = 0;
@@ -464,20 +518,31 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         for (WaterOrder order : orderList) {
             if (order != null) {
                 String status = order.getStatus();
-                boolean isTerminal = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status) || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
-                if (!isTerminal && order.isUrgent()) {
+                String assigned = order.getAssignedSellerId();
+                if (TextUtils.isEmpty(assigned)) assigned = order.getSellerId();
+
+                boolean isUnclaimedPending = WaterOrder.STATUS_PENDING.equalsIgnoreCase(status)
+                        && (TextUtils.isEmpty(assigned) || (currentSellerUid != null && currentSellerUid.equals(assigned)));
+
+                boolean isOwnClaimed = (WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
+                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status))
+                        && (currentSellerUid != null && currentSellerUid.equals(assigned));
+
+                boolean isOwnDelivered = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
+                        && (currentSellerUid != null && currentSellerUid.equals(assigned));
+
+                if ((isUnclaimedPending || isOwnClaimed) && order.isUrgent()) {
                     urgentPendingCount++;
                     if (latestUrgentOrder == null) {
                         latestUrgentOrder = order;
                     }
                 }
 
-                if (WaterOrder.STATUS_PENDING.equalsIgnoreCase(status)) {
+                if (isUnclaimedPending) {
                     pendingCount++;
-                } else if (WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(status)
-                        || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(status)) {
+                } else if (isOwnClaimed) {
                     activeDeliveriesCount++;
-                } else if (WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)) {
+                } else if (isOwnDelivered) {
                     emptyCollectedCount += order.getEmptyJarsToReturn();
                     lifetimeDeliveredCount++;
                     lifetimeRevenue += order.getTotalPrice();
@@ -552,12 +617,18 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             if (order == null) continue;
 
             String st = order.getStatus();
-            boolean isActive = WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)
-                    || WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(st)
-                    || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(st);
+            String assigned = order.getAssignedSellerId();
+            if (TextUtils.isEmpty(assigned)) assigned = order.getSellerId();
 
-            // Filter main queue so it ONLY shows active orders. NEVER show DELIVERED orders in the main queue.
-            if (!isActive) {
+            // Only show unclaimed pending or this seller's own claimed orders.
+            // Never show DELIVERED orders or orders claimed by another seller.
+            boolean isUnclaimedPending = WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)
+                    && (TextUtils.isEmpty(assigned) || (currentSellerUid != null && currentSellerUid.equals(assigned)));
+
+            boolean isOwnClaimed = (WaterOrder.STATUS_ACCEPTED.equalsIgnoreCase(st) || WaterOrder.STATUS_OUT_FOR_DELIVERY.equalsIgnoreCase(st))
+                    && (currentSellerUid != null && currentSellerUid.equals(assigned));
+
+            if (!isUnclaimedPending && !isOwnClaimed) {
                 continue;
             }
 
@@ -588,13 +659,16 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             tvOrderQueueCount.setText(String.format(Locale.getDefault(), "%d Active in Zone", filteredList.size()));
         }
 
-        // Serial Chronological Sorting: timestamp ascending (oldest/first-placed order at the top: #1, #2, #3)
+        // Urgent orders first, then serial chronological order (timestamp ascending)
         Collections.sort(filteredList, new Comparator<WaterOrder>() {
             @Override
             public int compare(WaterOrder o1, WaterOrder o2) {
                 if (o1 == null && o2 == null) return 0;
                 if (o1 == null) return 1;
                 if (o2 == null) return -1;
+                if (o1.isUrgent() != o2.isUrgent()) {
+                    return o1.isUrgent() ? -1 : 1;
+                }
                 return Long.compare(o1.getTimestamp(), o2.getTimestamp());
             }
         });
@@ -696,16 +770,109 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             Toast.makeText(this, "Cannot accept: This order was cancelled by the buyer.", Toast.LENGTH_SHORT).show();
             return;
         }
-        final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
-        final Map<String, Object> updates = new HashMap<>();
-        updates.put("status", WaterOrder.STATUS_OUT_FOR_DELIVERY);
-        if (!TextUtils.isEmpty(sellerUid)) {
-            updates.put("sellerId", sellerUid);
+
+        final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        if (TextUtils.isEmpty(currentSellerUid)) {
+            Toast.makeText(this, "Authentication error. Please re-login.", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        // Update locally in real time
+        final String depotTitle = !TextUtils.isEmpty(currentSellerDepotTitle) ? currentSellerDepotTitle : "KUET Depot";
+        final String assignedName = currentSellerName + " (" + depotTitle + ")";
+        final DocumentReference orderRef = FirebaseManager.getInstance().getOrdersRef().document(order.getOrderId());
+
+        Toast.makeText(this, "Claiming order #" + order.getOrderId() + "...", Toast.LENGTH_SHORT).show();
+
+        // Atomic Anti-Collision Order Locking via Firestore Transaction
+        FirebaseManager.getInstance().getFirestore().runTransaction(new Transaction.Function<Void>() {
+            @Nullable
+            @Override
+            public Void apply(@NonNull Transaction transaction) throws FirebaseFirestoreException {
+                DocumentSnapshot snapshot = transaction.get(orderRef);
+                if (!snapshot.exists()) {
+                    throw new FirebaseFirestoreException("Order no longer exists",
+                            FirebaseFirestoreException.Code.NOT_FOUND);
+                }
+
+                String currentStatus = snapshot.getString("status");
+                String assignedId = snapshot.getString("assignedSellerId");
+                if (TextUtils.isEmpty(assignedId)) {
+                    assignedId = snapshot.getString("sellerId");
+                }
+
+                // If no longer PENDING or assignedSellerId is already set by another seller, abort
+                if (!WaterOrder.STATUS_PENDING.equalsIgnoreCase(currentStatus)
+                        || (!TextUtils.isEmpty(assignedId) && !currentSellerUid.equals(assignedId))) {
+                    throw new FirebaseFirestoreException("ORDER_ALREADY_CLAIMED",
+                            FirebaseFirestoreException.Code.ABORTED);
+                }
+
+                Map<String, Object> updates = new HashMap<>();
+                updates.put("status", WaterOrder.STATUS_ACCEPTED);
+                updates.put("assignedSellerId", currentSellerUid);
+                updates.put("sellerId", currentSellerUid);
+                updates.put("assignedSellerName", assignedName);
+
+                transaction.update(orderRef, updates);
+                return null;
+            }
+        }).addOnSuccessListener(new OnSuccessListener<Void>() {
+            @Override
+            public void onSuccess(Void unused) {
+                // Update local state immediately
+                order.setStatus(WaterOrder.STATUS_ACCEPTED);
+                order.setAssignedSellerId(currentSellerUid);
+                order.setSellerId(currentSellerUid);
+                order.setAssignedSellerName(assignedName);
+                liveOrdersMap.put(order.getOrderId(), order);
+                recalculateAndDisplayOrders();
+
+                // Sync to Realtime Database
+                Map<String, Object> rtdbUpdates = new HashMap<>();
+                rtdbUpdates.put("status", WaterOrder.STATUS_ACCEPTED);
+                rtdbUpdates.put("assignedSellerId", currentSellerUid);
+                rtdbUpdates.put("sellerId", currentSellerUid);
+                rtdbUpdates.put("assignedSellerName", assignedName);
+                FirebaseManager.getInstance().getRtdbOrdersRef().child(order.getOrderId()).updateChildren(rtdbUpdates);
+
+                Toast.makeText(SellerDashboardActivity.this,
+                        "Order #" + order.getOrderId() + " accepted! Tap 'Start Van Delivery' when en route.",
+                        Toast.LENGTH_SHORT).show();
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                if (e instanceof FirebaseFirestoreException
+                        && "ORDER_ALREADY_CLAIMED".equals(e.getMessage())) {
+                    Toast.makeText(SellerDashboardActivity.this,
+                            "Order was just claimed by another seller!", Toast.LENGTH_LONG).show();
+                    // Remove from local queue
+                    liveOrdersMap.remove(order.getOrderId());
+                    recalculateAndDisplayOrders();
+                } else {
+                    Toast.makeText(SellerDashboardActivity.this,
+                            "Could not claim order: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            }
+        });
+    }
+
+    @Override
+    public void onStartDelivery(final WaterOrder order) {
+        if (order == null) return;
+        final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        final Map<String, Object> updates = new HashMap<>();
+        updates.put("status", WaterOrder.STATUS_OUT_FOR_DELIVERY);
+        if (!TextUtils.isEmpty(currentSellerUid)) {
+            updates.put("assignedSellerId", currentSellerUid);
+            updates.put("sellerId", currentSellerUid);
+        }
+
         order.setStatus(WaterOrder.STATUS_OUT_FOR_DELIVERY);
-        if (!TextUtils.isEmpty(sellerUid)) order.setSellerId(sellerUid);
+        if (!TextUtils.isEmpty(currentSellerUid)) {
+            order.setAssignedSellerId(currentSellerUid);
+            order.setSellerId(currentSellerUid);
+        }
         liveOrdersMap.put(order.getOrderId(), order);
         recalculateAndDisplayOrders();
 
@@ -722,7 +889,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         serviceIntent.putExtra("locationName", order.getLocationName());
                         ContextCompat.startForegroundService(SellerDashboardActivity.this, serviceIntent);
 
-                        // Week 10: Broadcast delivery status update
+                        // Broadcast delivery status update
                         Intent dispatchIntent = new Intent(DeliveryStatusReceiver.ACTION_DELIVERY_UPDATE);
                         dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_ORDER_ID, order.getOrderId());
                         dispatchIntent.putExtra(DeliveryStatusReceiver.EXTRA_STATUS, WaterOrder.STATUS_OUT_FOR_DELIVERY);
@@ -733,9 +900,9 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         sendBroadcast(dispatchIntent);
 
                         Toast.makeText(SellerDashboardActivity.this,
-                                "Order #" + order.getOrderId() + " accepted! Driver live GPS tracking broadcast started.", Toast.LENGTH_SHORT).show();
+                                "Order #" + order.getOrderId() + " is out for delivery! Driver GPS tracking broadcast active.",
+                                Toast.LENGTH_SHORT).show();
 
-                        // Launch live tracking map for seller
                         launchLiveMap(order);
                     }
                 },
@@ -743,15 +910,9 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                     @Override
                     public void onFailure(Exception e) {
                         Toast.makeText(SellerDashboardActivity.this,
-                                "Order acceptance warning: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                "Delivery start warning: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 });
-    }
-
-    @Override
-    public void onStartDelivery(final WaterOrder order) {
-        // Redundant alias for onAcceptOrder (both confirm order and launch driver telemetry)
-        onAcceptOrder(order);
     }
 
     @Override
@@ -1052,6 +1213,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         order.setDeliveredDate(todayDate);
         if (!TextUtils.isEmpty(sellerUid)) {
             order.setSellerId(sellerUid);
+            order.setAssignedSellerId(sellerUid);
         }
         liveOrdersMap.put(order.getOrderId(), order);
         recalculateAndDisplayOrders();
@@ -1063,6 +1225,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         orderUpdates.put("deliveredDate", todayDate);
         if (!TextUtils.isEmpty(sellerUid)) {
             orderUpdates.put("sellerId", sellerUid);
+            orderUpdates.put("assignedSellerId", sellerUid);
         }
 
         FirebaseManager.getInstance().updateOrderFields(order.getOrderId(), orderUpdates, null, null);
@@ -1201,9 +1364,14 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         Map<String, List<WaterOrder>> dailyMap = new TreeMap<>(Collections.reverseOrder());
         double totalRevenue = 0.0;
         int totalDelivered = 0;
+        final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
 
         for (WaterOrder order : cachedAllOrders) {
-            if (WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
+            String assigned = order.getAssignedSellerId();
+            if (TextUtils.isEmpty(assigned)) assigned = order.getSellerId();
+            boolean isMine = currentSellerUid != null && currentSellerUid.equals(assigned);
+
+            if (WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus()) && isMine) {
                 totalDelivered++;
                 totalRevenue += order.getTotalPrice();
 
