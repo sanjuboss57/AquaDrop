@@ -539,11 +539,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                     }
                 }
 
-                activeOrdersList.clear();
-                activeOrdersList.addAll(uniqueOrders.values());
+                List<WaterOrder> sortedActive = new ArrayList<>(uniqueOrders.values());
 
                 // Sort active orders: Urgent (isUrgent == true) first, then newest timestamp
-                Collections.sort(activeOrdersList, new Comparator<WaterOrder>() {
+                Collections.sort(sortedActive, new Comparator<WaterOrder>() {
                     @Override
                     public int compare(WaterOrder o1, WaterOrder o2) {
                         if (o1 == null && o2 == null) return 0;
@@ -555,6 +554,13 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         return Long.compare(o2.getTimestamp(), o1.getTimestamp());
                     }
                 });
+
+                activeOrdersList.clear();
+                // The Buyer dashboard Active Deliveries section strictly displays ONLY the single current / latest active delivery.
+                // Any previous orders are cleanly partitioned into Past Orders.
+                if (!sortedActive.isEmpty()) {
+                    activeOrdersList.add(sortedActive.get(0));
+                }
 
                 if (activeOrderAdapter != null) {
                     activeOrderAdapter.setOrders(activeOrdersList);
@@ -973,6 +979,33 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
         newOrder.setSellerId(assignedSellerId);
         newOrder.setAssignedSellerId(assignedSellerId);
         newOrder.setAssignedSellerName(assignedSellerName);
+
+        // Auto-archive any previous stale PENDING orders from this buyer so they never linger or collide
+        for (WaterOrder oldOrder : activeOrdersList) {
+            if (oldOrder != null && WaterOrder.STATUS_PENDING.equalsIgnoreCase(oldOrder.getStatus())) {
+                String oldId = oldOrder.getOrderId();
+                if (!TextUtils.isEmpty(oldId) && !oldId.equals(orderId)) {
+                    Map<String, Object> cancelUpdates = new HashMap<>();
+                    cancelUpdates.put("status", WaterOrder.STATUS_CANCELLED);
+                    cancelUpdates.put("cancellationReason", "Superseded by new order #" + orderId);
+                    FirebaseManager.getInstance().getRtdbOrdersRef().child(oldId).updateChildren(cancelUpdates);
+                    FirebaseManager.getInstance().getOrdersRef().document(oldId).update(cancelUpdates);
+                }
+            }
+        }
+
+        // Immediately update active deliveries to display strictly only the new order
+        activeOrdersList.clear();
+        activeOrdersList.add(newOrder);
+        if (activeOrderAdapter != null) {
+            activeOrderAdapter.setOrders(activeOrdersList);
+            activeOrderAdapter.notifyDataSetChanged();
+        }
+        if (tvActiveOrdersCountBadge != null) {
+            tvActiveOrdersCountBadge.setText("1 Active");
+        }
+        if (tvNoActiveOrdersPlaceholder != null) tvNoActiveOrdersPlaceholder.setVisibility(View.GONE);
+        if (rvActiveOrders != null) rvActiveOrders.setVisibility(View.VISIBLE);
 
         final String finalExactDirections = exactLocationNotes;
         final double latForIntent = finalLat;

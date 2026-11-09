@@ -114,9 +114,13 @@ public class BuyerOrderHistoryActivity extends AppCompatActivity implements Buye
                 if (snapshot.exists()) {
                     for (DataSnapshot child : snapshot.getChildren()) {
                         WaterOrder order = WaterOrder.fromDataSnapshot(child);
-                        if (order != null && currentBuyerUid.equals(order.getBuyerId())
-                                && WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
-                            deliveredOrdersMap.put(order.getOrderId(), order);
+                        if (order != null && currentBuyerUid.equals(order.getBuyerId())) {
+                            String status = order.getStatus();
+                            boolean isPast = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
+                                    || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
+                            if (isPast) {
+                                deliveredOrdersMap.put(order.getOrderId(), order);
+                            }
                         }
                     }
                     updateDeliveredHistoryUi();
@@ -134,15 +138,19 @@ public class BuyerOrderHistoryActivity extends AppCompatActivity implements Buye
         try {
             firestoreOrdersListener = FirebaseManager.getInstance().getOrdersRef()
                     .whereEqualTo("buyerId", currentBuyerUid)
-                    .whereEqualTo("status", WaterOrder.STATUS_DELIVERED)
                     .addSnapshotListener(new EventListener<QuerySnapshot>() {
                         @Override
                         public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirebaseFirestoreException error) {
                             if (error != null || snapshots == null) return;
                             for (DocumentSnapshot doc : snapshots.getDocuments()) {
                                 WaterOrder order = WaterOrder.fromSnapshot(doc);
-                                if (order != null && WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
-                                    deliveredOrdersMap.put(order.getOrderId(), order);
+                                if (order != null && currentBuyerUid.equals(order.getBuyerId())) {
+                                    String status = order.getStatus();
+                                    boolean isPast = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
+                                            || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
+                                    if (isPast) {
+                                        deliveredOrdersMap.put(order.getOrderId(), order);
+                                    }
                                 }
                             }
                             updateDeliveredHistoryUi();
@@ -162,9 +170,13 @@ public class BuyerOrderHistoryActivity extends AppCompatActivity implements Buye
                 if (snapshot.exists()) {
                     for (DataSnapshot child : snapshot.getChildren()) {
                         WaterOrder order = WaterOrder.fromDataSnapshot(child);
-                        if (order != null && currentBuyerUid.equals(order.getBuyerId())
-                                && WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
-                            deliveredOrdersMap.put(order.getOrderId(), order);
+                        if (order != null && currentBuyerUid.equals(order.getBuyerId())) {
+                            String status = order.getStatus();
+                            boolean isPast = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
+                                    || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
+                            if (isPast) {
+                                deliveredOrdersMap.put(order.getOrderId(), order);
+                            }
                         }
                     }
                     updateDeliveredHistoryUi();
@@ -192,13 +204,16 @@ public class BuyerOrderHistoryActivity extends AppCompatActivity implements Buye
             }
         });
 
-        int totalDeliveries = list.size();
+        int totalDeliveries = 0;
         int totalJars = 0;
         double totalSpent = 0.0;
 
         for (WaterOrder order : list) {
-            totalJars += order.getJarRefillCount();
-            totalSpent += order.getTotalPrice();
+            if (WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(order.getStatus())) {
+                totalDeliveries++;
+                totalJars += order.getJarRefillCount() + order.getNewJarWithDepositCount();
+                totalSpent += order.getTotalPrice();
+            }
         }
 
         tvHistoryCompletedCount.setText(String.format(Locale.getDefault(), "%d Order%s",
