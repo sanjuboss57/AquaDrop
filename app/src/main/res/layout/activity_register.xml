@@ -121,7 +121,7 @@
                             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="Special Seller Access Code (e.g., AQUA-SELLER-1)"
+                            android:hint="Author Seller Code (e.g., AQ-SELLER-01)"
                             app:boxStrokeColor="@color/accent"
                             app:hintTextColor="@color/accent"
                             app:startIconDrawable="@drawable/ic_person"

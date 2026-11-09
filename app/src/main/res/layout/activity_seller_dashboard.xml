@@ -51,6 +51,23 @@
                 android:text="🟢 Live Dispatch &amp; Online Depot"
                 android:textColor="#E0F2FE"
                 android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tvSellerAuthorCodeBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_badge"
+                android:backgroundTint="#004D40"
+                android:paddingStart="8dp"
+                android:paddingTop="2dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="2dp"
+                android:text="Author Code: AQ-SELLER-01"
+                android:textColor="#E0F2FE"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Scan Handover QR Button in Header -->

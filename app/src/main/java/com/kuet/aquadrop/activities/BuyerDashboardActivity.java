@@ -731,10 +731,9 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 liveOnlineSellersMap.putAll(incomingMap);
             }
         } else {
-            if (incomingMap != null) {
-                for (Map.Entry<String, User> entry : incomingMap.entrySet()) {
-                    liveOnlineSellersMap.put(entry.getKey(), entry.getValue());
-                }
+            // Firestore fallback: only populate if RTDB has not provided data yet
+            if (liveOnlineSellersMap.isEmpty() && incomingMap != null) {
+                liveOnlineSellersMap.putAll(incomingMap);
             }
         }
 

@@ -2,12 +2,17 @@ package com.kuet.aquadrop.utils;
 
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -16,6 +21,8 @@ import com.google.firebase.firestore.WriteBatch;
 import com.kuet.aquadrop.models.User;
 import com.kuet.aquadrop.models.WaterOrder;
 
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -37,6 +44,7 @@ public class FirebaseManager {
 
     // Realtime Database Paths
     public static final String PATH_ACTIVE_DELIVERIES = "active_deliveries";
+    public static final String PATH_AUTHOR_SELLER_CODES = "author_seller_codes";
 
     private static volatile FirebaseManager instance;
 
@@ -55,6 +63,7 @@ public class FirebaseManager {
             rtdbInstance = FirebaseDatabase.getInstance();
         }
         this.database = rtdbInstance;
+        seedDefaultAuthorAccessCodes();
     }
 
     public static FirebaseManager getInstance() {
@@ -134,6 +143,50 @@ public class FirebaseManager {
 
     public DatabaseReference getRtdbWaterQualityRef() {
         return database.getReference(COLLECTION_WATER_QUALITY);
+    }
+
+    public DatabaseReference getAuthorSellerCodesRef() {
+        return database.getReference(PATH_AUTHOR_SELLER_CODES);
+    }
+
+    /**
+     * Populates 10 individual author-provided access codes ("AQ-SELLER-01" to "AQ-SELLER-10")
+     * in Firebase Realtime Database under /author_seller_codes if the node does not exist.
+     */
+    public void seedDefaultAuthorAccessCodes() {
+        final DatabaseReference codesRef = getAuthorSellerCodesRef();
+        codesRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (!snapshot.exists() || !snapshot.hasChildren()) {
+                    Map<String, Object> batchMap = new HashMap<>();
+                    for (int i = 1; i <= 10; i++) {
+                        String code = String.format(Locale.ROOT, "AQ-SELLER-%02d", i);
+                        Map<String, Object> codeData = new HashMap<>();
+                        codeData.put("code", code);
+                        codeData.put("isClaimed", false);
+                        codeData.put("claimedByUid", "");
+                        codeData.put("claimedByEmail", "");
+                        batchMap.put(code, codeData);
+                    }
+                    codesRef.updateChildren(batchMap, new DatabaseReference.CompletionListener() {
+                        @Override
+                        public void onComplete(DatabaseError error, DatabaseReference ref) {
+                            if (error == null) {
+                                Log.d("FirebaseManager", "Seeded 10 default Author Seller Access Codes successfully.");
+                            } else {
+                                Log.w("FirebaseManager", "Failed to seed author seller codes: " + error.getMessage());
+                            }
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.w("FirebaseManager", "seedDefaultAuthorAccessCodes cancelled: " + error.getMessage());
+            }
+        });
     }
 
     /**

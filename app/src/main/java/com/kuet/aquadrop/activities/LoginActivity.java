@@ -63,6 +63,7 @@ public class LoginActivity extends AppCompatActivity {
 
         initViews();
         setupListeners();
+        FirebaseManager.getInstance().seedDefaultAuthorAccessCodes();
 
         // Check if redirected from registration with prefilled phone
         if (getIntent() != null && getIntent().hasExtra("prefillPhone")) {

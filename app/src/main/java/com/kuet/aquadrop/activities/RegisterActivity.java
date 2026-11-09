@@ -24,13 +24,18 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.ValueEventListener;
 import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.models.User;
 import com.kuet.aquadrop.utils.FirebaseManager;
 import com.kuet.aquadrop.utils.KuetLocations;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class RegisterActivity extends AppCompatActivity {
 
@@ -60,6 +65,7 @@ public class RegisterActivity extends AppCompatActivity {
         initViews();
         setupLocationSpinner();
         setupListeners();
+        FirebaseManager.getInstance().seedDefaultAuthorAccessCodes();
     }
 
     private void initViews() {
@@ -192,29 +198,17 @@ public class RegisterActivity extends AppCompatActivity {
         // Seller Special Authorization Verification
         if (rbSeller.isChecked()) {
             String enteredKey = etSellerAccessCode != null && etSellerAccessCode.getText() != null
-                    ? etSellerAccessCode.getText().toString().trim() : "";
+                    ? etSellerAccessCode.getText().toString().trim().toUpperCase(Locale.ROOT) : "";
             if (TextUtils.isEmpty(enteredKey)) {
                 if (etSellerAccessCode != null) {
-                    etSellerAccessCode.setError("Special Seller Access Code is required");
+                    etSellerAccessCode.setError("Author-Provided Seller Access Code is required");
                     etSellerAccessCode.requestFocus();
                 }
-                Toast.makeText(this, "Special Seller Access Code is required", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (!isValidSellerAccessKey(enteredKey)) {
-                if (etSellerAccessCode != null) {
-                    etSellerAccessCode.setError("Invalid Access Code! Contact AquaDrop Authority (KUET).");
-                    etSellerAccessCode.requestFocus();
-                }
-                new androidx.appcompat.app.AlertDialog.Builder(this)
-                        .setTitle("🔒 Special Access Code Required")
-                        .setMessage("Seller / Van accounts require an authorized Special Access Code (e.g., AQUA-SELLER-1, AQUA-SELLER-2, AQUA-SELLER-3, AQUA-SELLER-4, KUET-WATER-ADMIN).\n\nPlease enter an official code or select 'Buyer / Consumer' to register.")
-                        .setPositiveButton("OK", null)
-                        .show();
+                Toast.makeText(this, "Author-Provided Seller Access Code is required", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            final String cleanCode = enteredKey.toUpperCase(Locale.ROOT).trim();
+            final String cleanCode = enteredKey;
             final String enteredDepot = (etDepotName != null && etDepotName.getText() != null
                     && !TextUtils.isEmpty(etDepotName.getText().toString().trim()))
                     ? etDepotName.getText().toString().trim()
@@ -222,61 +216,51 @@ public class RegisterActivity extends AppCompatActivity {
 
             setLoadingState(true);
 
-            // Check Cloud Firestore users collection to ensure no existing Seller has claimed this code
-            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users")
-                    .whereEqualTo("sellerAccessCode", cleanCode)
-                    .get()
-                    .addOnSuccessListener(new OnSuccessListener<com.google.firebase.firestore.QuerySnapshot>() {
+            // Check /author_seller_codes/{cleanCode} in Firebase Realtime Database
+            FirebaseManager.getInstance().getDatabase().getReference("author_seller_codes")
+                    .child(cleanCode)
+                    .addListenerForSingleValueEvent(new ValueEventListener() {
                         @Override
-                        public void onSuccess(com.google.firebase.firestore.QuerySnapshot querySnapshot) {
-                            if (querySnapshot != null && !querySnapshot.isEmpty()) {
+                        public void onDataChange(@NonNull DataSnapshot snapshot) {
+                            if (!snapshot.exists()) {
                                 setLoadingState(false);
+                                if (etSellerAccessCode != null) {
+                                    etSellerAccessCode.setError("Invalid Access Code! Contact App Author.");
+                                    etSellerAccessCode.requestFocus();
+                                }
                                 new androidx.appcompat.app.AlertDialog.Builder(RegisterActivity.this)
-                                        .setTitle("🔒 Code Already Claimed")
-                                        .setMessage("Seller Access Code \"" + cleanCode + "\" is already registered to another Seller!\n\nEach special access code belongs strictly to one seller.")
+                                        .setTitle("🔒 Invalid Access Code")
+                                        .setMessage("Invalid Access Code! Please contact the App Author for your unique Seller Code (e.g. AQ-SELLER-01 to AQ-SELLER-10).")
                                         .setPositiveButton("OK", null)
                                         .show();
                                 return;
                             }
 
-                            // Also check legacy sellerAccessKey field
-                            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users")
-                                    .whereEqualTo("sellerAccessKey", cleanCode)
-                                    .get()
-                                    .addOnSuccessListener(new OnSuccessListener<com.google.firebase.firestore.QuerySnapshot>() {
-                                        @Override
-                                        public void onSuccess(com.google.firebase.firestore.QuerySnapshot legacySnap) {
-                                            if (legacySnap != null && !legacySnap.isEmpty()) {
-                                                setLoadingState(false);
-                                                new androidx.appcompat.app.AlertDialog.Builder(RegisterActivity.this)
-                                                        .setTitle("🔒 Code Already Claimed")
-                                                        .setMessage("Seller Access Code \"" + cleanCode + "\" is already registered to another Seller!\n\nEach special access code belongs strictly to one seller.")
-                                                        .setPositiveButton("OK", null)
-                                                        .show();
-                                                return;
-                                            }
+                            Boolean isClaimed = snapshot.child("isClaimed").getValue(Boolean.class);
+                            if (Boolean.TRUE.equals(isClaimed)) {
+                                setLoadingState(false);
+                                if (etSellerAccessCode != null) {
+                                    etSellerAccessCode.setError("This Access Code is already bound to another Seller ID!");
+                                    etSellerAccessCode.requestFocus();
+                                }
+                                new androidx.appcompat.app.AlertDialog.Builder(RegisterActivity.this)
+                                        .setTitle("🔒 Code Already Bound")
+                                        .setMessage("This Access Code is already bound to another Seller ID! Each Seller must use their own unique code.")
+                                        .setPositiveButton("OK", null)
+                                        .show();
+                                return;
+                            }
 
-                                            proceedWithRegistration(name, normalizedPhone, password, role,
-                                                    selectedLocation, finalRoom, finalFloorNumber, latLng,
-                                                    cleanCode, enteredDepot, optionalDirections);
-                                        }
-                                    })
-                                    .addOnFailureListener(new OnFailureListener() {
-                                        @Override
-                                        public void onFailure(@NonNull Exception e) {
-                                            proceedWithRegistration(name, normalizedPhone, password, role,
-                                                    selectedLocation, finalRoom, finalFloorNumber, latLng,
-                                                    cleanCode, enteredDepot, optionalDirections);
-                                        }
-                                    });
-                        }
-                    })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
+                            // Valid and unclaimed! Proceed with registration
                             proceedWithRegistration(name, normalizedPhone, password, role,
                                     selectedLocation, finalRoom, finalFloorNumber, latLng,
                                     cleanCode, enteredDepot, optionalDirections);
+                        }
+
+                        @Override
+                        public void onCancelled(@NonNull DatabaseError error) {
+                            setLoadingState(false);
+                            Toast.makeText(RegisterActivity.this, "Network error verifying code: " + error.getMessage(), Toast.LENGTH_SHORT).show();
                         }
                     });
 
@@ -302,6 +286,17 @@ public class RegisterActivity extends AppCompatActivity {
                         FirebaseUser firebaseUser = authResult.getUser();
                         if (firebaseUser != null) {
                             String uid = firebaseUser.getUid();
+
+                            if (User.ROLE_SELLER.equalsIgnoreCase(role) && !TextUtils.isEmpty(sellerAccessCode)) {
+                                Map<String, Object> claimUpdate = new HashMap<>();
+                                claimUpdate.put("isClaimed", true);
+                                claimUpdate.put("claimedByUid", uid);
+                                claimUpdate.put("claimedByEmail", authEmail);
+                                claimUpdate.put("claimedTimestamp", System.currentTimeMillis());
+                                FirebaseManager.getInstance().getDatabase().getReference("author_seller_codes")
+                                        .child(sellerAccessCode)
+                                        .updateChildren(claimUpdate);
+                            }
 
                             User newUser = new User(
                                     uid,

@@ -91,6 +91,13 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- Seller Presence Monitoring Service (Turns off readyForSupply on app cutoff/swipe) -->
+        <service
+            android:name=".services.SellerPresenceService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="false" />
+
         <!-- Root package aliases for full backward-compatibility -->
         <activity
             android:name=".BuyerDashboardActivity"

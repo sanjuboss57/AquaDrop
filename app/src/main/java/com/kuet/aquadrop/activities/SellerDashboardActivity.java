@@ -40,6 +40,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -100,6 +101,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     private TextView tvSupplyStatusBadge;
     private TextView tvSellerStorageStock;
     private MaterialButton btnUpdateStock;
+    private TextView tvSellerAuthorCodeBadge;
 
     // Dispatch Queue Views
     private TextView tvOrderQueueCount;
@@ -147,10 +149,50 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         setContentView(R.layout.activity_seller_dashboard);
 
         initViews();
+        resetSessionSupplyStatus();
         setupRecyclerView();
         setupListeners();
         loadSellerProfile();
         subscribeToOrdersCollection();
+    }
+
+    /**
+     * Session Start Reset: Guarantees that readyForSupply always starts as false (OFF)
+     * whenever the seller opens the app, until they explicitly flip the toggle ON.
+     */
+    private void resetSessionSupplyStatus() {
+        final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        if (TextUtils.isEmpty(sellerUid)) return;
+
+        if (currentSellerUser != null) {
+            currentSellerUser.setReadyForSupply(false);
+        }
+        if (switchReadyForSupply != null) {
+            switchReadyForSupply.setChecked(false);
+        }
+        if (tvSupplyStatusBadge != null) {
+            tvSupplyStatusBadge.setText("OFFLINE");
+            tvSupplyStatusBadge.setTextColor(Color.parseColor("#757575"));
+            tvSupplyStatusBadge.setBackgroundColor(Color.parseColor("#EEEEEE"));
+        }
+
+        try {
+            FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
+                    .child(sellerUid)
+                    .child("readyForSupply")
+                    .setValue(false);
+
+            FirebaseManager.getInstance().getRtdbUsersRef()
+                    .child(sellerUid)
+                    .child("readyForSupply")
+                    .setValue(false);
+
+            FirebaseManager.getInstance().getUsersRef()
+                    .document(sellerUid)
+                    .update("readyForSupply", false);
+        } catch (Exception e) {
+            Log.w("SellerDashboard", "Error resetting session supply status: " + e.getMessage());
+        }
     }
 
     private void loadSellerProfile() {
@@ -165,6 +207,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                         if (doc != null && doc.exists()) {
                             currentSellerUser = doc.toObject(User.class);
                             if (currentSellerUser != null) {
+                                // Enforce session-start offline default
+                                currentSellerUser.setReadyForSupply(switchReadyForSupply != null && switchReadyForSupply.isChecked());
                                 if (!TextUtils.isEmpty(currentSellerUser.getName())) {
                                     currentSellerName = currentSellerUser.getName();
                                 }
@@ -186,6 +230,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                             User u = User.fromDataSnapshot(snapshot);
                             if (u != null) {
                                 currentSellerUser = u;
+                                // Enforce session-start offline default
+                                currentSellerUser.setReadyForSupply(switchReadyForSupply != null && switchReadyForSupply.isChecked());
                                 if (!TextUtils.isEmpty(u.getName())) {
                                     currentSellerName = u.getName();
                                 }
@@ -224,6 +270,10 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         if (tvSellerStorageStock != null) {
             tvSellerStorageStock.setText(String.format(Locale.getDefault(), "Storage: %d Jars Available", stock));
         }
+        if (tvSellerAuthorCodeBadge != null && !TextUtils.isEmpty(currentSellerUser.getSellerAccessCode())) {
+            tvSellerAuthorCodeBadge.setText("Author Code: " + currentSellerUser.getSellerAccessCode());
+            tvSellerAuthorCodeBadge.setVisibility(View.VISIBLE);
+        }
     }
 
     private void toggleReadyForSupply(final boolean isOnline) {
@@ -234,6 +284,35 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             currentSellerUser.setReadyForSupply(isOnline);
         }
         updateSupplyUiState();
+
+        final DatabaseReference onlineRef = FirebaseManager.getInstance().getDatabase().getReference("online_sellers").child(sellerUid);
+        final DatabaseReference userRef = FirebaseManager.getInstance().getRtdbUsersRef().child(sellerUid);
+
+        if (isOnline) {
+            // Firebase Realtime Database onDisconnect hook (handles force-close, swipe away, or network cutoff)
+            onlineRef.child("readyForSupply").onDisconnect().setValue(false);
+            userRef.child("readyForSupply").onDisconnect().setValue(false);
+
+            // Start SellerPresenceService (handles onTaskRemoved swipe away)
+            try {
+                Intent serviceIntent = new Intent(this, com.kuet.aquadrop.services.SellerPresenceService.class);
+                serviceIntent.putExtra("sellerUid", sellerUid);
+                startService(serviceIntent);
+            } catch (Exception e) {
+                Log.w("SellerDashboard", "Error starting SellerPresenceService: " + e.getMessage());
+            }
+        } else {
+            // Cancel onDisconnect hook
+            try {
+                onlineRef.child("readyForSupply").onDisconnect().cancel();
+                userRef.child("readyForSupply").onDisconnect().cancel();
+            } catch (Exception ignored) {}
+
+            // Stop SellerPresenceService
+            try {
+                stopService(new Intent(this, com.kuet.aquadrop.services.SellerPresenceService.class));
+            } catch (Exception ignored) {}
+        }
 
         // 1. Update Firestore users collection
         FirebaseManager.getInstance().getUsersRef().document(sellerUid)
@@ -255,9 +334,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         sellerMap.put("readyForSupply", isOnline);
         sellerMap.put("timestamp", System.currentTimeMillis());
 
-        FirebaseManager.getInstance().getDatabase().getReference("online_sellers")
-                .child(sellerUid)
-                .setValue(sellerMap);
+        onlineRef.setValue(sellerMap);
+        userRef.child("readyForSupply").setValue(isOnline);
     }
 
     private void showRestockDialog() {
@@ -345,6 +423,7 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         tvSupplyStatusBadge = findViewById(R.id.tvSupplyStatusBadge);
         tvSellerStorageStock = findViewById(R.id.tvSellerStorageStock);
         btnUpdateStock = findViewById(R.id.btnUpdateStock);
+        tvSellerAuthorCodeBadge = findViewById(R.id.tvSellerAuthorCodeBadge);
 
         spinnerHallFilter = findViewById(R.id.spinnerHallFilter);
         tvHallBatchSummary = findViewById(R.id.tvHallBatchSummary);
@@ -464,6 +543,15 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         ivSellerLogout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
+                if (!TextUtils.isEmpty(sellerUid)) {
+                    try {
+                        FirebaseManager.getInstance().getDatabase().getReference("online_sellers").child(sellerUid).child("readyForSupply").setValue(false);
+                        FirebaseManager.getInstance().getRtdbUsersRef().child(sellerUid).child("readyForSupply").setValue(false);
+                        FirebaseManager.getInstance().getUsersRef().document(sellerUid).update("readyForSupply", false);
+                        stopService(new Intent(SellerDashboardActivity.this, com.kuet.aquadrop.services.SellerPresenceService.class));
+                    } catch (Exception ignored) {}
+                }
                 FirebaseManager.getInstance().signOut();
                 Intent intent = new Intent(SellerDashboardActivity.this, LoginActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -1802,6 +1890,15 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     protected void onDestroy() {
         super.onDestroy();
         Log.d("AquaDropLifecycle", "SellerDashboardActivity: onDestroy() called");
+        final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        if (!TextUtils.isEmpty(sellerUid)) {
+            try {
+                FirebaseManager.getInstance().getDatabase().getReference("online_sellers").child(sellerUid).child("readyForSupply").setValue(false);
+                FirebaseManager.getInstance().getRtdbUsersRef().child(sellerUid).child("readyForSupply").setValue(false);
+                FirebaseManager.getInstance().getUsersRef().document(sellerUid).update("readyForSupply", false);
+                stopService(new Intent(this, com.kuet.aquadrop.services.SellerPresenceService.class));
+            } catch (Exception ignored) {}
+        }
         if (ordersListenerRegistration != null) {
             ordersListenerRegistration.remove();
         }
