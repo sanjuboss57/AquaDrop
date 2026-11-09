@@ -10,7 +10,6 @@ import android.util.Log;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
-
 import com.kuet.aquadrop.R;
 import com.kuet.aquadrop.activities.BuyerDashboardActivity;
 import com.kuet.aquadrop.activities.LiveTrackingActivity;

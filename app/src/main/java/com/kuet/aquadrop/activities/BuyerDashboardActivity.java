@@ -129,6 +129,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
 
     private TextView tvOrderTotalPrice;
     private MaterialButton btnPlaceOrder;
+    private boolean isSubmittingOrder = false;
 
     // Section 3: Active Orders Only Views & Adapter
     private RecyclerView rvActiveOrders;
@@ -425,18 +426,19 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     }
 
     private void refreshBuyerOrdersUi() {
-        List<WaterOrder> all = new ArrayList<>(buyerOrdersMap.values());
-        List<WaterOrder> activeOrders = new ArrayList<>();
+        Map<String, WaterOrder> deduplicatedActiveMap = new HashMap<>();
 
-        for (WaterOrder order : all) {
-            if (order == null) continue;
+        for (WaterOrder order : buyerOrdersMap.values()) {
+            if (order == null || TextUtils.isEmpty(order.getOrderId())) continue;
             String status = order.getStatus();
             boolean isPast = WaterOrder.STATUS_DELIVERED.equalsIgnoreCase(status)
                     || WaterOrder.STATUS_CANCELLED.equalsIgnoreCase(status);
             if (!isPast) {
-                activeOrders.add(order);
+                deduplicatedActiveMap.put(order.getOrderId(), order);
             }
         }
+
+        List<WaterOrder> activeOrders = new ArrayList<>(deduplicatedActiveMap.values());
 
         // Sort active orders: Urgent (isUrgent == true) first, then newest timestamp
         Collections.sort(activeOrders, new Comparator<WaterOrder>() {
@@ -780,7 +782,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 tvOnlineSellersBadge.setText("0 Online (Offline)");
                 tvOnlineSellersBadge.setTextColor(Color.parseColor("#D32F2F"));
             }
-            if (btnPlaceOrder != null) {
+            if (btnPlaceOrder != null && !isSubmittingOrder) {
                 btnPlaceOrder.setEnabled(false);
                 btnPlaceOrder.setText("No Supplier Online");
             }
@@ -814,7 +816,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         onlineSellersList.size(), onlineSellersList.size() > 1 ? "s" : ""));
                 tvOnlineSellersBadge.setTextColor(Color.parseColor("#2E7D32"));
             }
-            if (btnPlaceOrder != null) {
+            if (btnPlaceOrder != null && !isSubmittingOrder) {
                 btnPlaceOrder.setEnabled(true);
                 btnPlaceOrder.setText("Place Water Order");
             }
@@ -880,6 +882,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
     }
 
     private void placeWaterOrder() {
+        if (isSubmittingOrder) {
+            return;
+        }
+
         if (currentUser == null) {
             Toast.makeText(this, "Profile not loaded yet. Please wait…", Toast.LENGTH_SHORT).show();
             return;
@@ -913,10 +919,14 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
             return;
         }
 
-        btnPlaceOrder.setEnabled(false);
+        isSubmittingOrder = true;
+        if (btnPlaceOrder != null) {
+            btnPlaceOrder.setEnabled(false);
+            btnPlaceOrder.setText("Placing Order...");
+        }
 
-        // Generate IDs
-        final String orderId = "AQ-" + (System.currentTimeMillis() % 1000000);
+        // Generate ONE single unified orderId
+        final String orderId = "AQ-" + System.currentTimeMillis();
         final String qrToken = "AQ-VERIFY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         final int extraDepositJars = 0; // Empty jars are free (0 BDT)
 
@@ -947,6 +957,8 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 ? currentUser.getOptionalDirections()
                 : (!TextUtils.isEmpty(currentUser.getLocationNotes()) ? currentUser.getLocationNotes() : "");
 
+        final boolean isUrgent = cbExpressDelivery != null && cbExpressDelivery.isChecked();
+
         final WaterOrder newOrder = new WaterOrder(
                 orderId,
                 currentUser.getUid(),
@@ -963,7 +975,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 calculatedTotal,
                 isBkash ? WaterOrder.PAYMENT_BKASH : WaterOrder.PAYMENT_CASH,
                 bkashTrxId,
-                cbExpressDelivery.isChecked(),
+                isUrgent,
                 WaterOrder.STATUS_PENDING,
                 System.currentTimeMillis(),
                 qrToken
@@ -995,9 +1007,15 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 new com.google.android.gms.tasks.OnSuccessListener<Void>() {
                     @Override
                     public void onSuccess(Void unused) {
+                        isSubmittingOrder = false;
                         if (btnPlaceOrder != null) {
                             btnPlaceOrder.setEnabled(!onlineSellersList.isEmpty());
+                            btnPlaceOrder.setText("Place Water Order");
                         }
+                        if (cbExpressDelivery != null) {
+                            cbExpressDelivery.setChecked(false);
+                        }
+
                         Toast.makeText(BuyerDashboardActivity.this, "Order " + orderId + " placed!", Toast.LENGTH_SHORT).show();
 
                         // Week 10 Component: BroadcastReceiver alert intent
@@ -1010,7 +1028,7 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         alertIntent.putExtra(DeliveryStatusReceiver.EXTRA_LOCATION_NAME, finalLocName);
                         alertIntent.putExtra("locationNotes", finalExactDirections);
                         alertIntent.putExtra("optionalDirections", finalExactDirections);
-                        alertIntent.putExtra("isUrgent", cbExpressDelivery.isChecked());
+                        alertIntent.putExtra("isUrgent", isUrgent);
                         sendBroadcast(alertIntent);
 
                         // Week 10 Component: ContentProvider record insertion
@@ -1031,11 +1049,10 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                         // Reset form
                         refillJarCount = 1;
                         returnJarCount = 1;
-                        tvRefillCount.setText("1");
-                        tvReturnCount.setText("1");
-                        cbExpressDelivery.setChecked(false);
-                        rbCashOnDelivery.setChecked(true);
-                        etBkashTrxId.setText("");
+                        if (tvRefillCount != null) tvRefillCount.setText("1");
+                        if (tvReturnCount != null) tvReturnCount.setText("1");
+                        if (rbCashOnDelivery != null) rbCashOnDelivery.setChecked(true);
+                        if (etBkashTrxId != null) etBkashTrxId.setText("");
                         recalculateOrderTotal();
 
                         // Present handover QR dialog safely without any chance of crash
@@ -1051,9 +1068,15 @@ public class BuyerDashboardActivity extends AppCompatActivity implements BuyerOr
                 new com.google.android.gms.tasks.OnFailureListener() {
                     @Override
                     public void onFailure(Exception e) {
+                        isSubmittingOrder = false;
                         if (btnPlaceOrder != null) {
                             btnPlaceOrder.setEnabled(!onlineSellersList.isEmpty());
+                            btnPlaceOrder.setText("Place Water Order");
                         }
+                        if (cbExpressDelivery != null) {
+                            cbExpressDelivery.setChecked(false);
+                        }
+
                         Toast.makeText(BuyerDashboardActivity.this, "Order placed locally. Network notice: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                         try {
                             if (!isFinishing() && !isDestroyed()) {

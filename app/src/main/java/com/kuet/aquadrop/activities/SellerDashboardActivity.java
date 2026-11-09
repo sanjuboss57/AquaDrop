@@ -660,7 +660,9 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
     }
 
     private void recalculateAndDisplayOrders() {
-        this.allOrdersList = new ArrayList<>(liveOrdersMap.values());
+        // Deduplicate orders from liveOrdersMap
+        Map<String, WaterOrder> deduplicatedMasterMap = new HashMap<>(liveOrdersMap);
+        this.allOrdersList = new ArrayList<>(deduplicatedMasterMap.values());
         List<WaterOrder> orderList = this.allOrdersList;
         final String currentSellerUid = FirebaseManager.getInstance().getCurrentUserId();
 
@@ -676,9 +678,15 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         double lifetimeRevenue = 0.0;
 
         String todayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        java.util.Set<String> processedOrderIds = new java.util.HashSet<>();
 
         for (WaterOrder order : orderList) {
-            if (order != null) {
+            if (order != null && !TextUtils.isEmpty(order.getOrderId())) {
+                if (processedOrderIds.contains(order.getOrderId())) {
+                    continue;
+                }
+                processedOrderIds.add(order.getOrderId());
+
                 String status = order.getStatus();
                 String assigned = order.getAssignedSellerId();
                 if (TextUtils.isEmpty(assigned)) assigned = order.getSellerId();
@@ -772,13 +780,13 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
         final boolean isAllHalls = "All KUET Locations".equalsIgnoreCase(selectedHallFilter)
                 || TextUtils.isEmpty(selectedHallFilter);
 
-        final List<WaterOrder> filteredList = new ArrayList<>();
+        final Map<String, WaterOrder> deduplicatedFilteredMap = new HashMap<>();
         int zonePendingCount = 0;
         int zoneLoadOnVanJars = 0;
         int zoneEmptyToCollectJars = 0;
 
         for (WaterOrder order : allOrdersList) {
-            if (order == null) continue;
+            if (order == null || TextUtils.isEmpty(order.getOrderId())) continue;
 
             String st = order.getStatus();
             String assigned = order.getAssignedSellerId();
@@ -799,8 +807,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             boolean matchesZone = isAllHalls || (order.getLocationName() != null
                     && order.getLocationName().equalsIgnoreCase(selectedHallFilter));
 
-            if (matchesZone) {
-                filteredList.add(order);
+            if (matchesZone && !deduplicatedFilteredMap.containsKey(order.getOrderId())) {
+                deduplicatedFilteredMap.put(order.getOrderId(), order);
                 if (WaterOrder.STATUS_PENDING.equalsIgnoreCase(st)) {
                     zonePendingCount++;
                 }
@@ -808,6 +816,8 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                 zoneEmptyToCollectJars += order.getEmptyJarsToReturn();
             }
         }
+
+        final List<WaterOrder> filteredList = new ArrayList<>(deduplicatedFilteredMap.values());
 
         // Update Feature 1 Trip Load Summary TextView
         if (tvHallBatchSummary != null) {
