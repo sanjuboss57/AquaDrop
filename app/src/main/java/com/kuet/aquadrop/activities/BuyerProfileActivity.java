@@ -1,6 +1,7 @@
 package com.kuet.aquadrop.activities;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -80,6 +81,7 @@ public class BuyerProfileActivity extends AppCompatActivity {
     private MaterialButton btnDetectDeviceGps;
     private MaterialButton btnCancelEditLocation;
     private MaterialButton btnSaveDeliveryLocation;
+    private MaterialButton btnBuyerProfileLogout;
 
     // State
     private User currentUser;
@@ -142,6 +144,7 @@ public class BuyerProfileActivity extends AppCompatActivity {
         btnDetectDeviceGps = findViewById(R.id.btnDetectDeviceGps);
         btnCancelEditLocation = findViewById(R.id.btnCancelEditLocation);
         btnSaveDeliveryLocation = findViewById(R.id.btnSaveDeliveryLocation);
+        btnBuyerProfileLogout = findViewById(R.id.btnBuyerProfileLogout);
     }
 
     private void setupHallSpinner() {
@@ -199,6 +202,19 @@ public class BuyerProfileActivity extends AppCompatActivity {
         });
 
         btnSaveDeliveryLocation.setOnClickListener(v -> saveDeliveryLocation());
+
+        if (btnBuyerProfileLogout != null) {
+            btnBuyerProfileLogout.setOnClickListener(v -> {
+                try {
+                    FirebaseManager.getInstance().signOut();
+                } catch (Exception ignored) {}
+                Toast.makeText(BuyerProfileActivity.this, "Logged out successfully", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(BuyerProfileActivity.this, LoginActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+            });
+        }
     }
 
     private void detectDeviceGps() {

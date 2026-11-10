@@ -538,6 +538,23 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Buyer Profile Logout Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnBuyerProfileLogout"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="32dp"
+                android:strokeColor="#EF4444"
+                android:text="Log Out of AquaDrop"
+                android:textAllCaps="false"
+                android:textColor="#EF4444"
+                android:textSize="15sp"
+                app:cornerRadius="10dp"
+                app:icon="@drawable/ic_logout"
+                app:iconTint="#EF4444" />
+
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 

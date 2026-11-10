@@ -1,6 +1,7 @@
 package com.kuet.aquadrop.activities;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
@@ -77,6 +78,7 @@ public class ProfileActivity extends AppCompatActivity {
     private TextView tvProfileDepositBalance;
 
     private MaterialButton btnProfileSave;
+    private MaterialButton btnProfileLogout;
 
     // State
     private User currentUser;
@@ -134,6 +136,7 @@ public class ProfileActivity extends AppCompatActivity {
         tvProfileDepositBalance = findViewById(R.id.tvProfileDepositBalance);
 
         btnProfileSave = findViewById(R.id.btnProfileSave);
+        btnProfileLogout = findViewById(R.id.btnProfileLogout);
     }
 
     private void setupLocationSpinner() {
@@ -201,6 +204,31 @@ public class ProfileActivity extends AppCompatActivity {
                 saveProfileChanges();
             }
         });
+
+        if (btnProfileLogout != null) {
+            btnProfileLogout.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    String uid = FirebaseManager.getInstance().getCurrentUserId();
+                    if (!TextUtils.isEmpty(uid)) {
+                        try {
+                            FirebaseManager.getInstance().getDatabase().getReference("online_sellers").child(uid).child("readyForSupply").setValue(false);
+                            FirebaseManager.getInstance().getRtdbUsersRef().child(uid).child("readyForSupply").setValue(false);
+                            FirebaseManager.getInstance().getUsersRef().document(uid).update("readyForSupply", false);
+                        } catch (Exception ignored) {}
+                    }
+                    try {
+                        FirebaseManager.getInstance().signOut();
+                    } catch (Exception ignored) {}
+
+                    Toast.makeText(ProfileActivity.this, "Logged out successfully", Toast.LENGTH_SHORT).show();
+                    Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    finish();
+                }
+            });
+        }
     }
 
     private void updateGpsDisplay() {

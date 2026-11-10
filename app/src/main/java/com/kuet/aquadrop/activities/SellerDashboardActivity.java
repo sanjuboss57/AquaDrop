@@ -482,32 +482,14 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
             });
         }
 
-        ivSellerLogout.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
-                if (!TextUtils.isEmpty(sellerUid)) {
-                    try {
-                        FirebaseManager.getInstance().getDatabase().getReference("online_sellers").child(sellerUid).child("readyForSupply").setValue(false);
-                        FirebaseManager.getInstance().getRtdbUsersRef().child(sellerUid).child("readyForSupply").setValue(false);
-                        FirebaseManager.getInstance().getUsersRef().document(sellerUid).update("readyForSupply", false)
-                                .addOnCompleteListener(task -> {
-                                    FirebaseManager.getInstance().signOut();
-                                    Intent intent = new Intent(SellerDashboardActivity.this, LoginActivity.class);
-                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                                    startActivity(intent);
-                                    finish();
-                                });
-                        return;
-                    } catch (Exception ignored) {}
+        if (ivSellerLogout != null) {
+            ivSellerLogout.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    performSellerLogout();
                 }
-                FirebaseManager.getInstance().signOut();
-                Intent intent = new Intent(SellerDashboardActivity.this, LoginActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                finish();
-            }
-        });
+            });
+        }
 
         btnUpdateWaterQuality.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -524,6 +506,57 @@ public class SellerDashboardActivity extends AppCompatActivity implements Seller
                 }
             });
         }
+    }
+
+    private void performSellerLogout() {
+        final String sellerUid = FirebaseManager.getInstance().getCurrentUserId();
+        if (!TextUtils.isEmpty(sellerUid)) {
+            // Asynchronously mark readyForSupply = false in RTDB (non-blocking)
+            try {
+                FirebaseManager.getInstance().getDatabase().getReference("online_sellers").child(sellerUid).child("readyForSupply").setValue(false);
+                FirebaseManager.getInstance().getRtdbUsersRef().child(sellerUid).child("readyForSupply").setValue(false);
+            } catch (Exception e) {
+                Log.w("SellerDashboard", "RTDB offline update on logout: " + e.getMessage());
+            }
+
+            // Asynchronously mirror to Firestore in background (never block logout)
+            try {
+                FirebaseManager.getInstance().getUsersRef().document(sellerUid).update("readyForSupply", false);
+            } catch (Exception e) {
+                Log.w("SellerDashboard", "Firestore offline update on logout: " + e.getMessage());
+            }
+        }
+
+        // Stop live GPS location broadcasting if active
+        try {
+            Intent stopIntent = new Intent(SellerDashboardActivity.this, LocationBroadcastService.class);
+            stopService(stopIntent);
+        } catch (Exception ignored) {}
+
+        // Remove active listeners
+        try {
+            if (ordersListenerRegistration != null) {
+                ordersListenerRegistration.remove();
+                ordersListenerRegistration = null;
+            }
+        } catch (Exception ignored) {}
+        try {
+            if (rtdbOrdersListener != null) {
+                FirebaseManager.getInstance().getRtdbOrdersRef().removeEventListener(rtdbOrdersListener);
+                rtdbOrdersListener = null;
+            }
+        } catch (Exception ignored) {}
+
+        // Sign out of Firebase
+        try {
+            FirebaseManager.getInstance().signOut();
+        } catch (Exception ignored) {}
+
+        Toast.makeText(SellerDashboardActivity.this, "Logged out successfully", Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(SellerDashboardActivity.this, LoginActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
     }
 
     @Override
